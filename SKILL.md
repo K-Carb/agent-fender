@@ -1,200 +1,122 @@
 ---
 name: agent-fender
-description: Agent runtime safety guardrails. Audits AI agent code for missing timeout, circuit breaker, injection detection, dangerous tool approval, dedup, and audit logging. Use when writing, reviewing, or debugging any AI agent code (LangGraph, CrewAI, AutoGen, OpenAI function calling, or custom loops).
+description: This skill should be used when writing, reviewing, or debugging AI agent code. Covers runtime safety guardrails: LLM timeout, loop limit, tool timeout, dangerous-tool gating, injection detection, and audit trail. Activate when user mentions agent, LLM, tool calling, LangGraph, CrewAI, AutoGen, OpenAI tools, or asks to "audit my agent", "check my agent for safety", "add guardrails", or "why is my agent failing".
 ---
 
 # Agent Fender
 
-Agent 运行时安全护栏。6 条规则，覆盖从 LLM 调用到工具执行的完整生命周期。
+## The Iron Law
+
+```
+EVERY AI AGENT MUST HAVE 6 GUARDS. MISSING EVEN ONE IS A BUG, NOT A FEATURE GAP.
+```
+
+Agent code without these guards is incomplete — regardless of how well the business logic works. Errors without classification, loops without limits, and user input without inspection are not "future improvements." They are defects that will surface in production.
+
+## The 6 Guards
+
+| # | Guard | What to Verify | Severity |
+|---|-------|---------------|----------|
+| 1 | **LLM timeout + error classification** | Every LLM call has timeout. Errors classified as `timeout` / `connection` / `response`. No bare `except Exception`. | Critical |
+| 2 | **Loop limit** | Every agent loop has a maximum iteration cap. No unbounded `while True` or unbounded graph recursion. | Critical |
+| 3 | **Tool timeout + error classification** | Every tool execution has timeout. Errors classified as `timeout` / `execution_error`. | Critical |
+| 4 | **Dangerous tool gating** | Write/delete/execute/send operations intercepted before execution. Human approval gate for dangerous actions. | High |
+| 5 | **Injection detection** | User-supplied text scanned for prompt injection patterns before reaching the LLM. | High |
+| 6 | **Audit trail** | Structured tracking of LLM calls, tool calls, errors, and decisions. Not `print()` statements. | Medium |
 
 ## When to Activate
 
-Activate when any of these are true:
+Activate when the user's request involves agent code and any of:
 
-- User is writing or reviewing AI Agent code (any framework or custom loop)
-- Code contains LLM calls, tool calls, or agent loops (`while True`, `for _ in range`, graph edges)
-- User mentions: agent, LLM, tool calling, function calling, LangGraph, CrewAI, AutoGen, OpenAI tools, MCP tool, LangChain
-- User asks: "check my agent", "audit my agent", "is my agent safe", "agent keeps failing", "agent stuck in loop", "agent timeout"
-- User says they want to deploy or ship an agent
+- **Writing**: generate agent, build agent, create a LangGraph/CrewAI/AutoGen agent
+- **Reviewing**: audit agent, check agent safety, review this agent code, is my agent safe
+- **Debugging**: agent keeps failing, agent stuck in loop, agent timeout, agent hangs, agent bill too high
+- **Frameworks**: LangGraph, CrewAI, AutoGen, OpenAI function calling / tools, MCP tool, LangChain
+- **Patterns**: `while True` + LLM call, tool execution without try/except, bare `requests.post` in agent code
 
-## The 6 Rules
-
-Every AI agent, regardless of framework or use case, must have:
-
-| # | Rule | Check For |
-|---|------|-----------|
-| 1 | **LLM timeout + error classification** | Every LLM call wrapped in timeout. Errors classified as timeout/connection/response (not bare `except Exception`). |
-| 2 | **Loop limit** | Every agent loop has a maximum iteration cap. No unbounded `while True`. |
-| 3 | **Tool timeout + error classification** | Every tool execution wrapped in timeout. Errors classified as timeout/execution_error. |
-| 4 | **Dangerous tool gating** | Write/delete/execute/send operations intercepted before execution. Human approval required for dangerous actions. |
-| 5 | **Injection detection** | User input scanned for prompt injection patterns before reaching the LLM. |
-| 6 | **Audit trail** | Structured tracking of LLM calls, tool calls, errors, and decisions. Not just print statements. |
-
-## Behavior Modes
+## Behavior
 
 ### Audit Mode
 
-When user asks to audit or check agent code:
+When the user provides agent code to audit:
 
-1. Read the agent code
-2. Check each of the 6 rules
-3. Report findings:
+1. Read the full agent source
+2. Check each of the 6 guards against the actual code
+3. Report findings in this exact format:
 
 ```
 ## Agent Safety Audit
 
-| Rule | Status | Detail |
-|------|--------|--------|
-| 1. LLM timeout | ✗ Missing | Line 23: ollama.chat() has no timeout |
-| 2. Loop limit | ✓ Present | Line 15: loop_count < MAX_ITER |
-| 3. Tool timeout | ✗ Missing | Line 45: execute_tool() has no timeout |
-| 4. Dangerous tool gating | ✗ Missing | No approval check before cancel_order |
-| 5. Injection detection | ✗ Missing | User input goes directly to LLM |
-| 6. Audit trail | ✗ Partial | print() statements, no structured logging |
+| # | Guard | Status | Detail |
+|---|-------|--------|--------|
+| 1 | LLM timeout | ✗ | Line 23: ollama.chat() has no timeout |
+| 2 | Loop limit | ✓ | Line 15: loop_count < MAX_ITER |
+| 3 | Tool timeout | ✗ | Line 45: execute_tool() has no timeout |
+| 4 | Dangerous tool gating | ✗ | No approval check before delete_record |
+| 5 | Injection detection | ✗ | User input goes directly to LLM |
+| 6 | Audit trail | ✗ | print() only, no structured logging |
 
-Coverage: 1/6  →  Fix the 5 missing guards.
+Coverage: 1/6 — 5 guards missing.
 ```
 
-4. If missing guards are found, offer to fix them.
+4. If any guards are missing, offer to fix them (see Fix Mode)
 
 ### Fix Mode
 
-When user wants to fix missing guards, present two options:
+Present two options and let the user choose:
 
-**Option A: Install the library** (recommended for production)
+**Option A: Use the `agent_fender` library** — production-ready, zero dependencies.
+
 ```bash
 pip install git+https://github.com/Carb/agent-fender.git
 ```
-Then integrate with 4 lines:
-```python
-from agent_fender import AgentGuard, GuardConfig
 
-guard = AgentGuard(GuardConfig(
-    max_loop_count=3,
-    max_tool_failures=2,
-    dangerous_tools=frozenset({"delete_", "cancel_", "execute_"}),
-))
+Integration: wrap LLM calls with `guard.safe_llm()`, tool calls with `guard.safe_tool()`, add `guard.preflight()` at loop top, add `guard.check_tools()` before tool execution. See `references/library-integration.md` for the full 4-line integration pattern.
 
-# Replace llm_call(...) with:
-result = await guard.safe_llm(llm_call, ...)
+**Option B: Inline guard patterns** — no dependency, minimal implementations.
 
-# Replace tool_exec(...) with:
-result = await guard.safe_tool(tool_exec, ...)
-
-# Add at loop top:
-if guard.preflight(loop_count=n, tool_failures=f).should_break:
-    return fallback_response
-
-# Add before tool execution:
-if guard.check_tools(tool_names).requires_approval:
-    await request_human_approval()
-```
-
-**Option B: Inline patterns** (no dependency)
-Generate minimal inline implementations of the missing guards directly in the user's code.
+Generate only the missing guards directly in the user's code. See `references/inline-patterns.md` for canonical implementations of all 6 guards. Copy only what's missing; never generate all 6 if only 2 are needed.
 
 ### Generate Mode
 
-When generating new agent code from scratch, automatically include all 6 guards:
+When generating new agent code from scratch, include all 6 guards by default. Offer the user the choice between library-based and inline-based code. Never generate bare agent code without guards unless the user explicitly asks for a minimal demo or prototype.
 
-- If the user accepts the library: generate code using `agent_fender`
-- If the user prefers no dependency: generate inline guard patterns
-- Never generate bare agent code without guards unless the user explicitly asks for a minimal demo
+## Red Flags
 
-## Guard Code Patterns (Inline, No Library)
+If any of these thoughts occur, STOP and apply the 6-guard check:
 
-When the user chooses Option B (no dependency), use these minimal patterns:
+- "This agent is simple, it doesn't need guards"
+- "The user didn't ask for safety, just build the agent"
+- "I'll add error handling later"
+- "The framework probably handles this"
+- "Just a prototype, skip the guards"
 
-### Rule 1: LLM timeout
-```python
-import asyncio
+Framework built-in features do not replace these guards. LangGraph checkpointing is not an audit trail. CrewAI retry is not tool timeout + error classification. AutoGen's max_turns is not loop limit — it only limits turns, not LLM calls per turn.
 
-async def safe_llm(llm_call, timeout=60, **kwargs):
-    try:
-        return await asyncio.wait_for(llm_call(**kwargs), timeout=timeout)
-    except asyncio.TimeoutError:
-        return {"error": "timeout", "user_message": "Service temporarily unavailable"}
-    except Exception as e:
-        error_type = "connection" if "connect" in str(e).lower() else "response"
-        return {"error": error_type, "user_message": "Service temporarily unavailable"}
-```
+## Guard Quick Reference
 
-### Rule 2: Loop limit
-```python
-MAX_LOOPS = 5
-loop_count = 0
-while loop_count < MAX_LOOPS:
-    loop_count += 1
-    ...
-```
+| Guard | Ask | Quick Fix |
+|-------|-----|-----------|
+| 1. LLM timeout | Is every LLM call wrapped in timeout? | `asyncio.wait_for(llm_call(**kwargs), timeout=60)` |
+| 2. Loop limit | Is there a max iteration cap? | `while loop_count < MAX_LOOPS:` |
+| 3. Tool timeout | Is every tool call wrapped in timeout? | `asyncio.wait_for(tool_func(*args, **kwargs), timeout=30)` |
+| 4. Dangerous gating | Are write/delete/execute operations intercepted? | `if tool_name in DANGEROUS: ask_approval()` |
+| 5. Injection scan | Is user input scanned before reaching the LLM? | `if check_injection(user_text): block()` |
+| 6. Audit trail | Can you trace what happened after a failure? | Structured log with event types and error classification |
 
-### Rule 3: Tool timeout
-```python
-async def safe_tool(tool_func, *args, timeout=30, **kwargs):
-    try:
-        return await asyncio.wait_for(tool_func(*args, **kwargs), timeout=timeout)
-    except asyncio.TimeoutError:
-        return {"error": "timeout"}
-    except Exception as e:
-        return {"error": "execution_error", "detail": str(e)}
-```
+## Scope
 
-### Rule 4: Dangerous tool gating
-```python
-DANGEROUS = {"delete_", "cancel_", "execute_", "write_", "send_"}
+This skill covers **runtime safety** for agent execution. It does not cover:
 
-def check_dangerous(tool_names):
-    matched = [t for t in tool_names if any(t.startswith(d) for d in DANGEROUS)]
-    if matched:
-        return {"requires_approval": True, "tools": matched}
-    return {"requires_approval": False}
-```
+- Output content safety (use a moderation API for that)
+- Token cost optimization (complementary concern)
+- Code quality or testing practices
+- Framework-specific configuration
 
-### Rule 5: Injection detection
-```python
-import re
+## References
 
-INJECTION_PATTERNS = [
-    (r"ignore\s+(all\s+)?(previous|prior|above)\s+instructions?", "high"),
-    (r"pretend\s+(you\s+are|to\s+be)", "medium"),
-    (r"forget\s+(everything|all|your\s+training)", "high"),
-    (r"\[system\]|<<system>>|\{system\}", "high"),
-]
+Detailed implementations and patterns live in:
 
-def check_injection(text):
-    for pattern, risk in INJECTION_PATTERNS:
-        if re.search(pattern, text, re.IGNORECASE):
-            return {"is_suspicious": True, "risk": risk}
-    return {"is_suspicious": False}
-```
-
-### Rule 6: Audit trail
-```python
-import time, json
-
-class AuditTrail:
-    def __init__(self):
-        self.records = []
-        self.started_at = time.time()
-
-    def log(self, event_type, success, detail=""):
-        self.records.append({
-            "time": time.time(), "event": event_type,
-            "success": success, "detail": detail
-        })
-
-    def summary(self):
-        errors = [r for r in self.records if not r["success"]]
-        return f"{len(self.records)} events, {len(errors)} errors"
-
-    def to_json(self):
-        return json.dumps(self.records, indent=2, ensure_ascii=False)
-```
-
-## Important
-
-- This skill covers **runtime safety** for agent execution, not code quality or testing
-- Always offer both Option A (library) and Option B (inline) — let the user choose
-- The library (`agent-fender`) provides more thorough implementations with edge cases handled
-- Inline patterns are minimal — they cover the 80% case, not every edge case
-- Never claim an agent is "safe" — say "all 6 guards are present" instead
+- **`references/inline-patterns.md`** — Minimal inline implementations of all 6 guards (no dependency)
+- **`references/library-integration.md`** — Full `agent_fender` library integration guide with examples
+- **`references/audit-examples.md`** — Annotated audit results for common agent patterns

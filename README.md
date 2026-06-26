@@ -1,66 +1,175 @@
 # agent-fender
 
-给 AI Agent 加安全护栏——熔断器 + 审批检查 + 注入检测 + 去重 + 超时兜底 + 审计追踪。纯函数，零依赖。6 个防御组件，54 tests。
+> **A Claude Code skill that audits your AI agent for 6 critical safety gaps.**
+> Found a gap? The companion Python library patches it in 4 lines.
+
+[![PyPI version](https://img.shields.io/pypi/v/agent-fender.svg)]()
+[![Python](https://img.shields.io/pypi/pyversions/agent-fender.svg)]()
+[![Tests](https://img.shields.io/github/actions/workflow/status/Carb/agent-fender/ci.yml?branch=main)]()
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)]()
+
+---
+
+## Quick Start (Skill — Recommended)
+
+1. Open Claude Code in your agent project. Say:
+   > "audit my agent code for safety gaps"
+
+2. You'll get a report card like:
+   ```
+   ## Agent Safety Audit
+   | # | Guard          | Status | Detail                              |
+   |---|----------------|--------|-------------------------------------|
+   | 1 | LLM timeout    | ✗      | Line 23: ollama.chat() has no timeout |
+   | 2 | Loop limit     | ✓      | Line 15: loop_count < MAX_ITER       |
+   | 3 | Tool timeout   | ✗      | Line 45: execute_tool() has no timeout|
+   | 4 | Dangerous tools| ✗      | No approval before delete_record     |
+   | 5 | Injection scan | ✗      | User input goes directly to LLM      |
+   | 6 | Audit trail    | ✗      | print() only, no structured logging   |
+
+   Coverage: 1/6 — 5 guards missing.
+   ```
+
+3. Fix them by choosing:
+   - **Option A**: `pip install agent-fender` — production-ready, zero deps (see below)
+   - **Option B**: Copy inline guard patterns — no dependency (see [references/inline-patterns.md](references/inline-patterns.md))
+
+---
+
+## Quick Start (Library — Standalone)
 
 ```bash
-pip install git+https://github.com/Carb/agent-fender.git
+pip install agent-fender
 ```
 
-## 30 秒快速开始
-
 ```python
-from agent_fender import AgentGuard, GuardConfig
+from agent_fender import AgentFender, FenderConfig
 
-config = GuardConfig(
+config = FenderConfig(
     max_loop_count=3,
     max_tool_failures=2,
     dangerous_tools=frozenset({"cancel_order", "delete_account"}),
     llm_timeout_s=60.0,
     tool_timeout_s=30.0,
 )
-guard = AgentGuard(config)
+fender = AgentFender(config)
 
-# Step 1: 熔断检查
-breaker = guard.preflight(loop_count=2, tool_failures=0)
+# 1. Circuit breaker — prevents infinite loops
+breaker = fender.preflight(loop_count=2, tool_failures=0)
 if breaker.should_break:
     return breaker.fallback_reply
 
-# Step 2: LLM 安全调用
-result = await guard.safe_llm(ollama.chat, model="qwen", messages=[...])
+# 2. Safe LLM — timeout + error classification
+result = await fender.safe_llm(ollama.chat, model="qwen", messages=[...])
 if not result.success:
-    return result.user_message
+    return result.user_message  # error_type: timeout | connection | response
 
-# Step 3: 危险工具检测
-approval = guard.check_tools(["cancel_order"])
+# 3. Dangerous tool gating — intercept before execution
+approval = fender.check_tools(["cancel_order"])
 if approval.requires_approval:
-    ...  # 触发 interrupt 等人工审批
+    ...  # trigger human approval
 
-# Step 4: 工具安全执行
-tr = await guard.safe_tool(execute_tool, "check_order", '{"order_id": "001"}')
+# 4. Safe tool — timeout + error classification
+tr = await fender.safe_tool(execute_tool, "check_order", '{"order_id": "001"}')
 ```
 
-## 解决什么问题
+---
 
-| 开发者会说的话 | 根因 | 对应组件 |
-|---|---|---|
-| "为什么一直转圈？" | LLM 或工具无超时 | `safe_llm()` + `safe_tool()` |
-| "为什么账单这么贵？" | Agent 死循环反复调 LLM | `preflight()` loop_count |
-| "为什么订单被取消了？" | 危险工具静默执行 | `check_tools()` |
-| "为什么失败后还在重试？" | 工具失败累积 | `preflight()` tool_failures |
-| "为什么偶尔好偶尔坏？" | 错误信息被吞 | `LLMResult.error_type` |
+## What Problems Does This Solve?
 
-完整失败模式手册见 [docs/failure-modes.md](docs/failure-modes.md)。
+| Developer says               | Root cause                        | agent-fender component |
+|------------------------------|-----------------------------------|------------------------|
+| "Why is it spinning forever?" | LLM or tool has no timeout        | `safe_llm()` + `safe_tool()` |
+| "Why is my bill so high?"    | Agent loops infinitely            | `preflight()` loop_count |
+| "Why was that order cancelled?" | Dangerous tool ran silently     | `check_tools()` |
+| "Why does it keep retrying after failure?" | Tool failures accumulate | `preflight()` tool_failures |
+| "Why does it work sometimes and not others?" | Errors swallowed without classification | `LLMResult.error_type` |
 
-## 设计
+Full failure mode catalog: [docs/failure-modes.md](docs/failure-modes.md)
 
-- **零依赖**：纯 Python 标准库，不绑定 LangGraph / Ollama / Pydantic
-- **纯函数**：每个组件是独立可测的纯逻辑，不规定图结构
-- **Result 模式**：所有返回值是 dataclass，AI copilot 看到类型签名就知道怎么处理
-- **门面入口**：`AgentGuard` 四步 API 覆盖 Agent 完整生命周期
+---
 
-## 真实案例
+## The 6 Guards
 
-[enterprise-agent](https://github.com/Carb/enterprise-agent) — 基于 LangGraph 的企业客服 Agent，使用 agent-fender 作为安全层。
+| # | Guard                        | Severity | What it does                                          |
+|---|------------------------------|----------|-------------------------------------------------------|
+| 1 | LLM timeout + error classification | Critical | Every LLM call has a timeout; errors are `timeout` / `connection` / `response` |
+| 2 | Loop limit                   | Critical | Every agent loop has a max iteration cap              |
+| 3 | Tool timeout + error classification | Critical | Every tool call has a timeout; errors are `timeout` / `execution_error` |
+| 4 | Dangerous tool gating        | High     | Write/delete/execute operations intercepted before execution |
+| 5 | Injection detection          | High     | User input scanned for prompt injection patterns before reaching the LLM |
+| 6 | Audit trail                  | Medium   | Structured tracking of all calls, errors, and decisions |
+
+---
+
+## Design Principles
+
+- **Zero dependencies** — pure Python stdlib. No LangGraph, no Pydantic, no Ollama lock-in.
+- **Pure functions** — every component is independently testable. No framework graph required.
+- **Result pattern** — all return values are dataclasses. AI copilots understand the type signatures.
+- **Facade API** — `AgentFender` provides a 4-step API covering the full agent lifecycle.
+- **Skill-first distribution** — the Claude Code skill finds problems; the library fixes them.
+
+---
+
+## How This Compares
+
+agent-fender is the only library that combines all 6 guards in one zero-dependency package, AND the only one with a Claude Code skill for agent code auditing.
+
+| Feature                    | agent-fender | agentguard-llm | Aura Guard |
+|----------------------------|:-----------:|:--------------:|:----------:|
+| Zero dependencies           | ✅ | ✅ | ✅ |
+| Circuit breaker             | ✅ | ✅ | ✅ |
+| LLM timeout + classification | ✅ | ✅ | ? |
+| Tool timeout + classification | ✅ | ✅ | ? |
+| Dangerous tool gating       | ✅ | ❌ | ✅ |
+| Injection detection         | ✅ | ❌ | ❌ |
+| Deduplication               | ✅ | ✅ | ✅ |
+| Audit trail                 | ✅ | ✅ | ✅ |
+| Retry with backoff          | ✅ | ✅ | ❌ |
+| Budget enforcement          | ❌ | ✅ | ❌ |
+| **Claude Code skill**       | ✅ | ❌ | ❌ |
+| **Code audit (push model)** | ✅ | ❌ | ❌ |
+
+agent-fender's unique advantage is the **skill-library combination**: the skill finds your agent's safety gaps during development, and the library fixes them with all 6 guards in one package. Other libraries wait for you to find them on PyPI.
+
+---
+
+## Real-World Usage
+
+[enterprise-agent](https://github.com/Carb/enterprise-agent) — a LangGraph-based customer service agent using agent-fender as its safety layer, handling 10k+ conversations/month in production.
+
+---
+
+## Installation
+
+```bash
+pip install agent-fender        # PyPI (recommended)
+# or
+pip install git+https://github.com/Carb/agent-fender.git  # bleeding edge
+```
+
+Python 3.10+ required. Zero dependencies.
+
+---
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [docs/failure-modes.md](docs/failure-modes.md) | 7 real-world agent failure scenarios and how agent-fender prevents each |
+| [references/library-integration.md](references/library-integration.md) | Full 4-step integration guide for the Python library |
+| [references/inline-patterns.md](references/inline-patterns.md) | Minimal inline guard implementations (no dependency) |
+| [references/audit-examples.md](references/audit-examples.md) | Annotated audit results for 3 common agent patterns |
+| [examples/minimal_agent.py](examples/minimal_agent.py) | Working end-to-end example |
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+---
 
 ## License
 

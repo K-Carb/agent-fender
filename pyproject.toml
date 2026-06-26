@@ -5,9 +5,46 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "agent-fender"
 version = "0.1.0"
-description = "给 AI Agent 加安全护栏：熔断器 + 审批检查 + 超时兜底。纯函数，零依赖。"
+description = "Runtime safety guardrails for AI agents: circuit breaker, approval gating, injection detection, dedup, timeout enforcement, and audit trail. Pure functions, zero dependencies."
 requires-python = ">=3.10"
 dependencies = []
+authors = [
+    {name = "Carb"},
+]
+readme = "README.md"
+license = {text = "MIT"}
+keywords = [
+    "ai-agent",
+    "agent-safety",
+    "guardrails",
+    "circuit-breaker",
+    "langgraph",
+    "crewai",
+    "autogen",
+    "llm",
+    "prompt-injection",
+    "runtime-safety",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Framework :: LangGraph",
+    "Framework :: CrewAI",
+]
+
+[project.urls]
+Homepage = "https://github.com/Carb/agent-fender"
+Repository = "https://github.com/Carb/agent-fender"
+Issues = "https://github.com/Carb/agent-fender/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.25"]

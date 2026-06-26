@@ -1,27 +1,27 @@
 """
-最简示例：用 agent-fender 给 LangGraph agent 加安全护栏。
+Minimal example: adding safety guardrails to a LangGraph agent with agent-fender.
 
-展示：AgentGuard 四步调用 → preflight / safe_llm / check_tools / safe_tool
+Demonstrates: AgentFender 4-step call → preflight / safe_llm / check_tools / safe_tool
 """
 import asyncio
 
-from agent_fender import AgentGuard, GuardConfig
+from agent_fender import AgentFender, FenderConfig
 
 
-# ── Step 0: 创建配置和护栏 ────────────────────────────
-config = GuardConfig(
+# ── Step 0: Create config and fender ───────────────────
+config = FenderConfig(
     max_loop_count=3,
     max_tool_failures=2,
     dangerous_tools=frozenset({"delete_account", "transfer_money"}),
     llm_timeout_s=30.0,
     tool_timeout_s=10.0,
 )
-guard = AgentGuard(config)
+fender = AgentFender(config)
 
 
-# ── 模拟 LLM 和工具 ──────────────────────────────────
+# ── Mock LLM and tools ──────────────────────────────────
 def fake_llm(**kwargs):
-    """模拟 LLM：返回一个选中的工具调用"""
+    """Mock LLM: returns a selected tool call"""
     tools = kwargs.get("tools", [])
     if tools:
         return {
@@ -31,56 +31,56 @@ def fake_llm(**kwargs):
                 ]
             }
         }
-    return {"message": {"content": "你好，有什么可以帮你的？"}}
+    return {"message": {"content": "Hello, how can I help you?"}}
 
 
 def fake_execute_tool(tool_name: str, tool_args: str) -> str:
-    """模拟工具执行"""
+    """Mock tool execution"""
     if tool_name == "broken_tool":
-        raise RuntimeError("连接数据库失败")
-    return '{"success": true, "data": "操作完成"}'
+        raise RuntimeError("Database connection failed")
+    return '{"success": true, "data": "Operation completed"}'
 
 
-# ── 模拟一个 Action 节点的四步调用 ─────────────────────
+# ── Simulate a 4-step action node ─────────────────────
 async def demo_action_node():
     loop_count = 2
     tool_failures = 0
 
-    # Step 1: 熔断检查
-    breaker = guard.preflight(loop_count=loop_count, tool_failures=tool_failures)
+    # Step 1: Circuit breaker check
+    breaker = fender.preflight(loop_count=loop_count, tool_failures=tool_failures)
     if breaker.should_break:
-        print(f"[熔断] {breaker.reason}: {breaker.fallback_reply}")
+        print(f"[breaker] {breaker.reason}: {breaker.fallback_reply}")
         return
 
-    # Step 2: LLM 安全调用
-    llm_result = await guard.safe_llm(
+    # Step 2: Safe LLM call
+    llm_result = await fender.safe_llm(
         fake_llm, model="qwen",
-        messages=[{"role": "user", "content": "查订单"}],
+        messages=[{"role": "user", "content": "Check my order"}],
         tools=[{"function": {"name": "check_order"}}],
     )
     if not llm_result.success:
-        print(f"[LLM 故障] {llm_result.error_type}: {llm_result.user_message}")
+        print(f"[LLM error] {llm_result.error_type}: {llm_result.user_message}")
         return
 
-    # Step 3: 危险工具检测
+    # Step 3: Dangerous tool check
     tool_names = ["check_order"]
-    approval = guard.check_tools(tool_names)
+    approval = fender.check_tools(tool_names)
     if approval.requires_approval:
-        print(f"[审批] {approval.message}")
+        print(f"[approval] {approval.message}")
         return
 
-    # Step 4: 安全执行工具
+    # Step 4: Safe tool execution
     for tool_name in tool_names:
-        tr = await guard.safe_tool(fake_execute_tool, tool_name, "{}")
+        tr = await fender.safe_tool(fake_execute_tool, tool_name, "{}")
         if not tr.success:
             tool_failures += 1
-            print(f"[工具失败] {tr.error_type}: {tr.user_message}")
+            print(f"[tool error] {tr.error_type}: {tr.user_message}")
         else:
-            print(f"[成功] {tool_name}: {tr.data}")
+            print(f"[success] {tool_name}: {tr.data}")
 
-    # ── 演示危险工具检测 ──
-    approval = guard.check_tools(["transfer_money"])
-    print(f"[危险检测] requires_approval={approval.requires_approval}")
+    # ── Demonstrate dangerous tool detection ──
+    approval = fender.check_tools(["transfer_money"])
+    print(f"[dangerous] requires_approval={approval.requires_approval}")
 
 
 if __name__ == "__main__":

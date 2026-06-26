@@ -81,43 +81,43 @@ Coverage: 2/6 (1 partial). Fix guards 3, 4, 5, and 6.
 
 ```python
 # User's code — all 6 guards present:
-from agent_fender import AgentGuard, GuardConfig
+from agent_fender import AgentFender, FenderConfig
 
-guard = AgentGuard(GuardConfig(max_loop_count=5, max_tool_failures=3,
+fender = AgentFender(FenderConfig(max_loop_count=5, max_tool_failures=3,
                                 dangerous_tools=frozenset({"delete_account"})))
 
 async def agent_loop():
-    guard.start_session()
+    fender.start_session()
     loop_count = 0
     tool_failures = 0
 
     while True:
         # Guard 2: loop limit via preflight
-        breaker = guard.preflight(loop_count=loop_count, tool_failures=tool_failures)
+        breaker = fender.preflight(loop_count=loop_count, tool_failures=tool_failures)
         if breaker.should_break:
             return breaker.fallback_reply
         loop_count += 1
 
         # Guard 5: injection detection
         user_input = get_latest_user_message(state)
-        if guard.check_injection(user_input).is_suspicious:
+        if fender.check_injection(user_input).is_suspicious:
             return "Suspicious input detected."
 
         # Guard 1: safe LLM
-        llm_result = await guard.safe_llm(llm.chat, model="qwen", messages=[...], tools=[...])
+        llm_result = await fender.safe_llm(llm.chat, model="qwen", messages=[...], tools=[...])
         if not llm_result.success:
             return llm_result.user_message
 
         tool_names = [tc["function"]["name"] for tc in llm_result.data["message"]["tool_calls"]]
 
         # Guard 4: dangerous tool gating
-        if guard.check_tools(tool_names).requires_approval:
+        if fender.check_tools(tool_names).requires_approval:
             if not await request_human_approval():
                 return "Operation cancelled."
 
         for name in tool_names:
             # Guard 3: safe tool
-            tr = await guard.safe_tool(execute_tool, name, args)
+            tr = await fender.safe_tool(execute_tool, name, args)
             if not tr.success:
                 tool_failures += 1
 
@@ -131,12 +131,12 @@ Audit result:
 
 | # | Guard | Status | Detail |
 |---|-------|--------|--------|
-| 1 | LLM timeout | ✓ | guard.safe_llm() with 60s timeout; errors classified as timeout/connection/response |
-| 2 | Loop limit | ✓ | guard.preflight() checks loop_count >= 5 |
-| 3 | Tool timeout | ✓ | guard.safe_tool() with 30s timeout; errors classified as timeout/execution_error |
-| 4 | Dangerous tool gating | ✓ | guard.check_tools() intercepts delete_account before execution |
-| 5 | Injection detection | ✓ | guard.check_injection() scans user input before LLM |
-| 6 | Audit trail | ✓ | GuardSession tracks all calls, errors, and decisions |
+| 1 | LLM timeout | ✓ | fender.safe_llm() with 60s timeout; errors classified as timeout/connection/response |
+| 2 | Loop limit | ✓ | fender.preflight() checks loop_count >= 5 |
+| 3 | Tool timeout | ✓ | fender.safe_tool() with 30s timeout; errors classified as timeout/execution_error |
+| 4 | Dangerous tool gating | ✓ | fender.check_tools() intercepts delete_account before execution |
+| 5 | Injection detection | ✓ | fender.check_injection() scans user input before LLM |
+| 6 | Audit trail | ✓ | FenderSession tracks all calls, errors, and decisions |
 
 Coverage: 6/6 — all guards present.
 ```

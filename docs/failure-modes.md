@@ -1,185 +1,185 @@
-# Agent 失败模式手册
+# Agent Failure Mode Catalog
 
-开发 AI Agent 时最常见的 7 种致命场景，以及 agent-fender 如何防御。
+The 7 most common fatal scenarios when building AI agents, and how agent-fender defends against each.
 
 ---
 
-## 1. "为什么一直转圈？" — 无超时悬挂
+## 1. "Why is it spinning forever?" — No Timeout Hang
 
-**没加护栏**：`ollama.chat()` 和 `execute_tool()` 都没有 timeout，卡住时请求永久挂起，协程泄漏。
+**Without guardrails**: `ollama.chat()` and `execute_tool()` have no timeout. Requests hang indefinitely when stuck, leaking coroutines.
 
 ```python
-# Before: 裸调用
+# Before: bare calls
 response = ollama.chat(model="qwen", messages=[...])
 result = execute_tool("cancel_order", {...})
 ```
 
-**加 agent-fender**：
+**With agent-fender**:
 
 ```python
 # After: safe_llm + safe_tool
-result = await guard.safe_llm(ollama.chat, model="qwen", messages=[...])
+result = await fender.safe_llm(ollama.chat, model="qwen", messages=[...])
 if not result.success:
     return {"final_reply": result.user_message}
 
-tr = await guard.safe_tool(execute_tool, "cancel_order", {...})
+tr = await fender.safe_tool(execute_tool, "cancel_order", {...})
 if not tr.success:
     tool_failures += 1
 ```
 
-**防什么**：`asyncio.wait_for` 超时控制。LLM 默认 60s，工具默认 30s。超时后返回结构化错误而非抛异常。
+**Defense**: `asyncio.wait_for` timeout control. LLM defaults to 60s, tools to 30s. Returns structured errors instead of raising exceptions on timeout.
 
 ---
 
-## 2. "为什么账单这么贵？" — 无限循环
+## 2. "Why is my bill so high?" — Infinite Loops
 
-**没加护栏**：LLM 反复选工具不停止，一次对话烧几百次 LLM 调用。
+**Without guardrails**: LLM repeatedly selects tools without stopping. Hundreds of LLM calls burned in a single conversation.
 
 ```python
-# Before: 无循环限制
+# Before: no loop limit
 async def action_node(state):
-    response = ollama.chat(messages=..., tools=...)  # LLM 可能一直选工具
+    response = ollama.chat(messages=..., tools=...)  # LLM may keep picking tools
     tool_names = [tc["function"]["name"] for tc in response["message"]["tool_calls"]]
     ...
 ```
 
-**加 agent-fender**：
+**With agent-fender**:
 
 ```python
-# After: preflight 熔断
-breaker = guard.preflight(loop_count=state.loop_counter, tool_failures=failures)
+# After: preflight circuit breaker
+breaker = fender.preflight(loop_count=state.loop_counter, tool_failures=failures)
 if breaker.should_break:
     return {"final_reply": breaker.fallback_reply}
-# 通过 → 继续 LLM 调用
+# Passed → continue LLM call
 ```
 
-**防什么**：`loop_count >= max_loop_count` 时熔断，直接返回兜底回复。不烧 LLM、不烧用户。
+**Defense**: Circuit breaks when `loop_count >= max_loop_count`. Returns fallback reply. Doesn't burn the LLM, doesn't burn the user.
 
 ---
 
-## 3. "为什么订单被取消了？" — 静默执行危险操作
+## 3. "Why was that order cancelled?" — Silent Dangerous Execution
 
-**没加护栏**：LLM 选中 `cancel_order`，直接执行，没有任何人工确认。
+**Without guardrails**: LLM selects `cancel_order` and executes it immediately without any human confirmation.
 
 ```python
-# Before: LLM 选什么就执行什么
+# Before: execute whatever the LLM picks
 for tc in response["message"]["tool_calls"]:
     result = execute_tool(tc.name, tc.args)
 ```
 
-**加 agent-fender**：
+**With agent-fender**:
 
 ```python
-# After: check_dangerous 前置判断
+# After: check_dangerous pre-execution check
 tool_names = [tc["function"]["name"] for tc in raw_calls]
-approval = guard.check_tools(tool_names)
+approval = fender.check_tools(tool_names)
 if approval.requires_approval:
-    # 触发 LangGraph interrupt()，等人工审批
+    # Trigger LangGraph interrupt(), wait for human approval
     decision = interrupt(approval.message)
 ```
 
-**防什么**：`check_dangerous()` 在工具执行前拦截。危险工具名单可配置。
+**Defense**: `check_dangerous()` intercepts before execution. Dangerous tool list is configurable.
 
 ---
 
-## 4. "为什么我说 yes 它就取消了订单？" — 误批准
+## 4. "Why did it cancel the order when I just said 'yes'?" — Accidental Approval
 
-**没加护栏**：关键词检测在挂起检查之前。上一轮审批挂着，这轮聊天说了个 yes，被当成"批准取消订单"。
+**Without guardrails**: Keyword matching happens before pending-check. A previous approval is still pending, the user says "yes" in normal conversation, and it's misinterpreted as approving the cancellation.
 
 ```python
-# Before: 先匹配关键词，后检查挂起
-if msg in ("yes", "批准"):
-    return _resume_graph(approved=True)  # ← 上一轮的审批被误触发了
+# Before: match keyword first, check pending later
+if msg in ("yes", "approve"):
+    return _resume_graph(approved=True)  # ← previous round's approval triggered by mistake
 if _has_pending_interrupt(thread_id):
     ...
 ```
 
-**加 agent-fender + main.py 修复**：
+**With agent-fender + main.py fix**:
 
 ```python
-# After: 先检查挂起，再匹配关键词
+# After: check pending first, then match keyword
 if _has_pending_interrupt(thread_id):
-    if msg in ("yes", "批准"):
+    if msg in ("yes", "approve"):
         return _resume_graph(approved=True)
-    return "有审批未处理"
-# 无挂起 → yes 就当普通消息
+    return "You have a pending approval"
+# No pending interrupt → treat "yes" as normal message
 ```
 
-**防什么**：`check_dangerous()` 提供纯判断（哪些工具需要审批）。main.py 修复确保关键词只在有挂起中断时才作为审批信号。
+**Defense**: `check_dangerous()` provides pure judgment (which tools need approval). The main.py fix ensures keywords are only treated as approval signals when an interrupt is actually pending.
 
 ---
 
-## 5. "为什么失败后还在重试？" — 工具级联失败
+## 5. "Why does it keep retrying after failure?" — Tool Cascade Failure
 
-**没加护栏**：一个工具失败后，LLM 换另一个工具继续调，错误累积到不可收拾。
+**Without guardrails**: One tool fails, the LLM picks another tool and keeps going. Errors accumulate until unrecoverable.
 
 ```python
-# Before: 无失败计数
+# Before: no failure counting
 for tc in raw_calls:
     result = execute_tool(tc.name, tc.args)
-    reply = polish(result)  # 失败了也继续
+    reply = polish(result)  # continues even after failure
 ```
 
-**加 agent-fender**：
+**With agent-fender**:
 
 ```python
-# After: preflight 检查 tool_failures
-breaker = guard.preflight(loop_count=state.loop_counter, tool_failures=tool_failures)
+# After: preflight checks tool_failures
+breaker = fender.preflight(loop_count=state.loop_counter, tool_failures=tool_failures)
 if breaker.should_break:
     return {"final_reply": breaker.fallback_reply}
 
 for tc in raw_calls:
-    tr = await guard.safe_tool(execute_tool, tc.name, tc.args)
+    tr = await fender.safe_tool(execute_tool, tc.name, tc.args)
     if not tr.success:
-        tool_failures += 1  # 累加，下次 preflight 可能触发 tool_failures 熔断
+        tool_failures += 1  # Accumulate; next preflight may trigger tool_failures breaker
 ```
 
-**防什么**：连续失败满 3 次（可配置），`preflight()` 直接熔断。
+**Defense**: After 3 consecutive failures (configurable), `preflight()` trips the circuit breaker.
 
 ---
 
-## 6. "为什么重启后全忘了？" — 内存存储失忆
+## 6. "Why does it forget everything after restart?" — In-Memory Amnesia
 
-**没加护栏**：`MemorySaver()` 所有状态在进程内存。`uvicorn --reload` 或 `docker restart` → 全部丢失。
+**Without guardrails**: `MemorySaver()` stores all state in process memory. `uvicorn --reload` or `docker restart` → everything is lost.
 
 ```python
-# Before: 内存存储
+# Before: in-memory storage
 graph.compile(checkpointer=MemorySaver())
 ```
 
-**修复**：
+**Fix**:
 
 ```python
-# After: SqliteSaver 落盘
+# After: SqliteSaver for persistence
 from langgraph.checkpoint.sqlite import SqliteSaver
 graph.compile(checkpointer=SqliteSaver.from_conn_string("checkpoints.db"))
 ```
 
-**注**：这是 LangGraph 层面的修复，不属于 agent-fender 库本身。但 `failure-modes.md` 把它作为第 6 个模式记录，因为这是真实开发中最常见的坑之一。
+**Note**: This is a LangGraph-level fix, not part of the agent-fender library itself. It's included in `failure-modes.md` because it's one of the most common pitfalls in real-world development.
 
 ---
 
-## 7. "为什么偶尔好偶尔坏？" — 错误信息被吞
+## 7. "Why does it work sometimes but not others?" — Errors Silently Swallowed
 
-**没加护栏**：裸 `try/except` 只返回"服务不可用"，不区分超时/断连/格式错误。排查时只能看日志猜。
+**Without guardrails**: Bare `try/except` returns only "Service unavailable" without distinguishing timeout/connection/format errors. Debugging means guessing from logs.
 
 ```python
-# Before: 错误被吞
+# Before: errors swallowed
 try:
     response = ollama.chat(...)
 except Exception:
-    reply = "服务不可用"  # 是超时？断连？不知道
+    reply = "Service unavailable"  # Timeout? Connection error? Unknown
 ```
 
-**加 agent-fender**：
+**With agent-fender**:
 
 ```python
-# After: LLMResult.error_type 分类
-result = await guard.safe_llm(ollama.chat, ...)
+# After: LLMResult.error_type classification
+result = await fender.safe_llm(ollama.chat, ...)
 if not result.success:
     log.error(f"LLM fail: {result.error_type} - {result.error_message}")
     return {"final_reply": result.user_message}
     # error_type: "timeout" | "connection" | "response"
 ```
 
-**防什么**：`LLMResult.error_type` 和 `SafeToolResult.error_type` 精确分类错误类型。可重试的（timeout）和不可重试的（connection）一目了然。
+**Defense**: `LLMResult.error_type` and `SafeToolResult.error_type` precisely classify error types. Retryable (timeout) vs non-retryable (connection) is immediately clear.

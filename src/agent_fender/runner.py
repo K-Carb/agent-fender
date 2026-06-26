@@ -13,16 +13,16 @@ from agent_fender.approval import (
     check_injection,
 )
 from agent_fender.circuit_breaker import CircuitBreaker, CircuitBreakerResult
-from agent_fender.config import GuardConfig
-from agent_fender.safe_llm import LLMResult, safe_llm_chat
+from agent_fender.config import FenderConfig
+from agent_fender.safe_llm import LLMResult, safe_embed, safe_llm_chat
 from agent_fender.safe_tool import SafeToolResult, safe_tool
 
 logger = logging.getLogger("agent_fender")
 
 
 @dataclass
-class GuardSession:
-    """Audit trail for one agent invocation. Tracks what happened."""
+class FenderSession:
+    """Audit trail for one agent invocation. Tracks all guarded calls automatically."""
 
     llm_calls: int = 0
     llm_timeouts: int = 0
@@ -55,7 +55,7 @@ class GuardSession:
     @property
     def summary(self) -> str:
         lines = [
-            f"GuardSession ({self.elapsed_s:.1f}s):",
+            f"FenderSession ({self.elapsed_s:.1f}s):",
             f"  LLM: {self.llm_calls} calls"
             + (f" ({self.llm_timeouts} timeout, {self.llm_connection_errors} connection, {self.llm_response_errors} response)" if self.total_errors else " (all ok)"),  # noqa: E501
             f"  Tools: {self.tool_calls} calls"
@@ -71,30 +71,41 @@ class GuardSession:
         return "\n".join(lines)
 
 
-class AgentGuard:
-    def __init__(self, config: GuardConfig):
+class AgentFender:
+    """Facade that combines all 6 guards into a 4-step agent safety API.
+
+    Usage:
+        fender = AgentFender(FenderConfig(...))
+        fender.preflight(loop_count=..., tool_failures=...)
+        await fender.safe_llm(llm_fn, ...)
+        fender.check_tools([...])
+        await fender.safe_tool(tool_fn, ...)
+    """
+
+    def __init__(self, config: FenderConfig):
         self.config = config
         self._breaker = CircuitBreaker(config)
-        self._session: GuardSession | None = None
+        self._session: FenderSession | None = None
 
     # ── session management ──────────────────────────
 
-    def start_session(self) -> GuardSession:
-        self._session = GuardSession(started_at=time.time())
+    def start_session(self) -> FenderSession:
+        self._session = FenderSession(started_at=time.time())
         return self._session
 
-    def stop_session(self) -> GuardSession | None:
+    def stop_session(self) -> FenderSession | None:
         s = self._session
         self._session = None
         return s
 
     @property
-    def session(self) -> GuardSession | None:
+    def session(self) -> FenderSession | None:
         return self._session
 
-    # ── guard methods ───────────────────────────────
+    # ── fender methods ──────────────────────────────
 
     def preflight(self, *, loop_count: int, tool_failures: int) -> CircuitBreakerResult:
+        """Check circuit breaker before each agent loop iteration."""
         result = self._breaker.check(loop_count=loop_count, tool_failures=tool_failures)
         if result.should_break and self._session:
             self._session.circuit_breaker_trips += 1
@@ -105,8 +116,31 @@ class AgentGuard:
         self, llm_call: Callable[..., Any], *, timeout_s: float | None = None, **kwargs: Any
     ) -> LLMResult:
         ts = timeout_s if timeout_s is not None else self.config.llm_timeout_s
-        result = await safe_llm_chat(llm_call, timeout_s=ts,
-                                     fallback_message=self.config.llm_error_reply, **kwargs)
+        retries = kwargs.pop("retries", self.config.llm_retries)
+        retry_delay = kwargs.pop("retry_base_delay_s", self.config.retry_base_delay_s)
+        result = await safe_llm_chat(
+            llm_call, timeout_s=ts,
+            fallback_message=self.config.llm_error_reply,
+            retries=retries, retry_base_delay_s=retry_delay, **kwargs,
+        )
+        if self._session:
+            self._session.llm_calls += 1
+            if not result.success:
+                if result.error_type == "timeout":
+                    self._session.llm_timeouts += 1
+                elif result.error_type == "connection":
+                    self._session.llm_connection_errors += 1
+                else:
+                    self._session.llm_response_errors += 1
+        return result
+
+    async def safe_embed(
+        self, embed_call: Callable[..., Any], *,
+        timeout_s: float | None = None, **kwargs: Any,
+    ) -> LLMResult:
+        ts = timeout_s if timeout_s is not None else self.config.llm_timeout_s
+        result = await safe_embed(embed_call, timeout_s=ts,
+                                  fallback_message=self.config.llm_error_reply, **kwargs)
         if self._session:
             self._session.llm_calls += 1
             if not result.success:
@@ -131,7 +165,11 @@ class AgentGuard:
         timeout_s: float | None = None, **kwargs: Any,
     ) -> SafeToolResult:
         ts = timeout_s if timeout_s is not None else self.config.tool_timeout_s
-        result = await safe_tool(tool_func, *args, timeout_s=ts, **kwargs)
+        retries = kwargs.pop("retries", self.config.tool_retries)
+        retry_delay = kwargs.pop("retry_base_delay_s", self.config.retry_base_delay_s)
+        result = await safe_tool(tool_func, *args, timeout_s=ts,
+                                 fallback_message=self.config.tool_error_reply,
+                                 retries=retries, retry_base_delay_s=retry_delay, **kwargs)
         if self._session:
             self._session.tool_calls += 1
             if not result.success:

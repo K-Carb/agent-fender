@@ -1,7 +1,7 @@
 import logging
 from dataclasses import dataclass
 
-from agent_fender.config import GuardConfig
+from agent_fender.config import FenderConfig
 
 logger = logging.getLogger("agent_fender")
 
@@ -14,10 +14,13 @@ class CircuitBreakerResult:
 
 
 class CircuitBreaker:
-    def __init__(self, config: GuardConfig):
+    """Checks loop_count and tool_failures against configured thresholds."""
+
+    def __init__(self, config: FenderConfig):
         self.config = config
 
     def check(self, *, loop_count: int, tool_failures: int) -> CircuitBreakerResult:
+        """Return whether the circuit should break based on current counts."""
         if loop_count >= self.config.max_loop_count:
             logger.warning("Circuit breaker: max_loops (%d >= %d)",
                            loop_count, self.config.max_loop_count)

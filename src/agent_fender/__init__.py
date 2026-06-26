@@ -18,9 +18,9 @@ from agent_fender.approval import (
 )
 from agent_fender.circuit_breaker import CircuitBreaker as CircuitBreaker
 from agent_fender.circuit_breaker import CircuitBreakerResult as CircuitBreakerResult
-from agent_fender.config import GuardConfig as GuardConfig
-from agent_fender.runner import AgentGuard as AgentGuard
-from agent_fender.runner import GuardSession as GuardSession
+from agent_fender.config import FenderConfig as FenderConfig
+from agent_fender.runner import AgentFender as AgentFender
+from agent_fender.runner import FenderSession as FenderSession
 from agent_fender.safe_llm import LLMResult as LLMResult
 from agent_fender.safe_llm import safe_embed as safe_embed
 from agent_fender.safe_llm import safe_llm_chat as safe_llm_chat

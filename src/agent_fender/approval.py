@@ -1,4 +1,9 @@
+import logging
+import re
+import time
 from dataclasses import dataclass, field
+
+logger = logging.getLogger("agent_fender")
 
 
 @dataclass
@@ -21,6 +26,11 @@ class InjectionCheck:
     patterns_matched: list[str] = field(default_factory=list)
     risk: str = "low"  # "low" | "medium" | "high"
 
+    @property
+    def needs_deeper_scan(self) -> bool:
+        """True when risk is high — caller should consider semantic-level analysis."""
+        return self.risk == "high"
+
 
 def check_dangerous(
     tool_names: list[str],
@@ -28,6 +38,7 @@ def check_dangerous(
     *,
     message_template: str = "The following operations require approval: {tools}",
 ) -> ApprovalCheck:
+    """Check if any tool in tool_names is in the dangerous set."""
     matched = [t for t in tool_names if t in dangerous_tools]
     if matched:
         return ApprovalCheck(
@@ -38,7 +49,7 @@ def check_dangerous(
     return ApprovalCheck(requires_approval=False, dangerous_tools_found=[])
 
 
-_INJECTION_PATTERNS: list[tuple[str, str]] = [
+_RAW_INJECTION_PATTERNS: list[tuple[str, str]] = [
     (r"ignore\s+(all\s+)?(previous|prior|above)\s+instructions?", "high"),
     (r"you\s+are\s+(now\s+)?(a\s+)?different", "medium"),
     (r"pretend\s+(you\s+are|to\s+be)", "medium"),
@@ -50,21 +61,36 @@ _INJECTION_PATTERNS: list[tuple[str, str]] = [
     (r"from\s+now\s+on\s+you\s+(are|will\s+be)", "low"),
 ]
 
+_INJECTION_RULES: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(pattern, re.IGNORECASE), risk)
+    for pattern, risk in _RAW_INJECTION_PATTERNS
+]
+
+_MAX_INPUT_LENGTH = 4096
+
 
 def check_injection(
     text: str,
     *,
     custom_patterns: list[tuple[str, str]] | None = None,
 ) -> InjectionCheck:
-    """Detect prompt injection patterns in user input. Pure function, regex-based."""
-    import re
-    patterns = custom_patterns or _INJECTION_PATTERNS
+    """Detect prompt injection patterns in user input. Regex-based baseline."""
+    if len(text) > _MAX_INPUT_LENGTH:
+        logger.warning("Injection check input truncated from %d to %d chars",
+                       len(text), _MAX_INPUT_LENGTH)
+        text = text[:_MAX_INPUT_LENGTH]
+
+    if custom_patterns:
+        rules = [(re.compile(p, re.IGNORECASE), r) for p, r in custom_patterns]
+    else:
+        rules = _INJECTION_RULES
+
     matched: list[str] = []
     highest_risk = "low"
     risk_order = {"low": 0, "medium": 1, "high": 2}
-    for pattern, risk in patterns:
-        if re.search(pattern, text, re.IGNORECASE):
-            matched.append(pattern)
+    for compiled, risk in rules:
+        if compiled.search(text):
+            matched.append(compiled.pattern)
             if risk_order.get(risk, 0) > risk_order.get(highest_risk, 0):
                 highest_risk = risk
     return InjectionCheck(
@@ -80,8 +106,10 @@ def check_dedup(
     *,
     now: float | None = None,
 ) -> DedupCheck:
-    """Check if a request key has been seen before. For idempotency."""
-    import time
+    """Check if a request key has been seen before. For idempotency.
+
+    Note: this function modifies seen_keys by adding the key on first sight.
+    """
     if key in seen_keys:
         return DedupCheck(is_duplicate=True, key=key)
     seen_keys.add(key)

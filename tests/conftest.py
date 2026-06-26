@@ -7,7 +7,7 @@ def config():
     return FenderConfig(
         max_loop_count=3,
         max_tool_failures=3,
-        dangerous_tools=frozenset({"cancel_order", "modify_user_address"}),
+        dangerous_tools=frozenset({"delete_file", "modify_config"}),
         llm_timeout_s=60.0,
         tool_timeout_s=30.0,
     )

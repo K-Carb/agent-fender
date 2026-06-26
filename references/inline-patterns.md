@@ -67,7 +67,7 @@ async def safe_tool(tool_func, *args, timeout=30, **kwargs):
 
 ```python
 DANGEROUS_TOOLS = frozenset({
-    "delete_account", "cancel_order", "execute_command",
+    "delete_account", "delete_file", "execute_command",
     "send_email", "write_file", "drop_table", "transfer_funds",
 })
 
@@ -82,7 +82,7 @@ def check_dangerous(tool_names):
     return {"requires_approval": False, "dangerous_tools_found": []}
 
 # Usage:
-approval = check_dangerous(["check_order", "cancel_order"])
+approval = check_dangerous(["search_files", "delete_file"])
 if approval["requires_approval"]:
     raise Interrupt(approval["message"])  # Or your framework's interrupt mechanism
 ```

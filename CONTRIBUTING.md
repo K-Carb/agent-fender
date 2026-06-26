@@ -14,7 +14,7 @@ pip install -e ".[dev]"
 pytest tests/ -v
 ```
 
-75 tests should pass in under 2 seconds.
+106 tests should pass in under 2 seconds.
 
 ## What to Work On
 

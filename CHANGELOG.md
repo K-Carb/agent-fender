@@ -16,4 +16,4 @@
 - `fallback_message` parameter on `safe_tool`
 - `tool_error_reply` config field
 - Config validation via `__post_init__`
-- 75 tests, zero dependencies
+- 106 tests, zero dependencies

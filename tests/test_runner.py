@@ -17,12 +17,12 @@ class TestAgentFender:
         assert result.reason == "max_loops"
 
     def test_check_tools_delegates_to_approval(self, fender):
-        result = fender.check_tools(["cancel_order"])
+        result = fender.check_tools(["delete_file"])
         assert result.requires_approval is True
-        assert "cancel_order" in result.dangerous_tools_found
+        assert "delete_file" in result.dangerous_tools_found
 
     def test_check_tools_safe(self, fender):
-        result = fender.check_tools(["check_order"])
+        result = fender.check_tools(["search_files"])
         assert result.requires_approval is False
 
     @pytest.mark.asyncio
@@ -33,7 +33,7 @@ class TestAgentFender:
 
     @pytest.mark.asyncio
     async def test_safe_tool_delegates(self, fender, sync_tool):
-        result = await fender.safe_tool(sync_tool, "check_order", '{}')
+        result = await fender.safe_tool(sync_tool, "search_files", '{}')
         assert result.success is True
 
     @pytest.mark.asyncio

@@ -17,7 +17,7 @@ config = FenderConfig(
     max_loop_count=3,        # Max LLM→tool→LLM iterations
     max_tool_failures=2,     # Max consecutive tool failures before breaking
     dangerous_tools=frozenset({
-        "delete_account", "cancel_order", "execute_command",
+        "delete_account", "delete_file", "execute_command",
         "send_email", "write_file", "drop_table", "transfer_funds",
     }),
     llm_timeout_s=60.0,      # Per-LLM-call timeout

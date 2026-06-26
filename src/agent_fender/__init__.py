@@ -18,6 +18,7 @@ from agent_fender.approval import (
 )
 from agent_fender.circuit_breaker import CircuitBreaker as CircuitBreaker
 from agent_fender.circuit_breaker import CircuitBreakerResult as CircuitBreakerResult
+from agent_fender.circuit_breaker import check_action_loop as check_action_loop
 from agent_fender.config import FenderConfig as FenderConfig
 from agent_fender.runner import AgentFender as AgentFender
 from agent_fender.runner import FenderSession as FenderSession

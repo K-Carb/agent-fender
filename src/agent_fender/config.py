@@ -17,6 +17,8 @@ class FenderConfig:
         llm_retries: Max retry attempts for LLM calls (0 = no retry).
         tool_retries: Max retry attempts for tool calls (0 = no retry).
         retry_base_delay_s: Base delay in seconds between retries (doubles each attempt).
+        max_repeated_actions: Same action N times in a row triggers circuit break (0 = disabled).
+        max_action_sequence_repeats: A,B pattern repeating N times triggers circuit break (0 = disabled).
     """
 
     max_loop_count: int = 3
@@ -30,6 +32,8 @@ class FenderConfig:
     llm_retries: int = 0
     tool_retries: int = 0
     retry_base_delay_s: float = 1.0
+    max_repeated_actions: int = 3
+    max_action_sequence_repeats: int = 2
 
     def __post_init__(self):
         if self.max_loop_count < 1:
@@ -46,3 +50,7 @@ class FenderConfig:
             raise ValueError(f"tool_retries must be >= 0, got {self.tool_retries}")
         if self.retry_base_delay_s <= 0:
             raise ValueError(f"retry_base_delay_s must be > 0, got {self.retry_base_delay_s}")
+        if self.max_repeated_actions < 0:
+            raise ValueError(f"max_repeated_actions must be >= 0, got {self.max_repeated_actions}")
+        if self.max_action_sequence_repeats < 0:
+            raise ValueError(f"max_action_sequence_repeats must be >= 0, got {self.max_action_sequence_repeats}")

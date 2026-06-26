@@ -11,7 +11,7 @@ The 7 most common fatal scenarios when building AI agents, and how agent-fender 
 ```python
 # Before: bare calls
 response = ollama.chat(model="qwen", messages=[...])
-result = execute_tool("cancel_order", {...})
+result = execute_tool("delete_file", {...})
 ```
 
 **With agent-fender**:
@@ -22,7 +22,7 @@ result = await fender.safe_llm(ollama.chat, model="qwen", messages=[...])
 if not result.success:
     return {"final_reply": result.user_message}
 
-tr = await fender.safe_tool(execute_tool, "cancel_order", {...})
+tr = await fender.safe_tool(execute_tool, "delete_file", {...})
 if not tr.success:
     tool_failures += 1
 ```
@@ -57,9 +57,9 @@ if breaker.should_break:
 
 ---
 
-## 3. "Why was that order cancelled?" — Silent Dangerous Execution
+## 3. "Why was that file deleted?" — Silent Dangerous Execution
 
-**Without guardrails**: LLM selects `cancel_order` and executes it immediately without any human confirmation.
+**Without guardrails**: LLM selects `delete_file` and executes it immediately without any human confirmation.
 
 ```python
 # Before: execute whatever the LLM picks
@@ -82,7 +82,7 @@ if approval.requires_approval:
 
 ---
 
-## 4. "Why did it cancel the order when I just said 'yes'?" — Accidental Approval
+## 4. "Why was it deleted when I just said 'yes'?" — Accidental Approval
 
 **Without guardrails**: Keyword matching happens before pending-check. A previous approval is still pending, the user says "yes" in normal conversation, and it's misinterpreted as approving the cancellation.
 

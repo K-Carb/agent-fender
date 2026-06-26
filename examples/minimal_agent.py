@@ -55,15 +55,15 @@ async def demo_action_node():
     # Step 2: Safe LLM call
     llm_result = await fender.safe_llm(
         fake_llm, model="qwen",
-        messages=[{"role": "user", "content": "Check my order"}],
-        tools=[{"function": {"name": "check_order"}}],
+        messages=[{"role": "user", "content": "Search the logs for errors"}],
+        tools=[{"function": {"name": "search_logs"}}],
     )
     if not llm_result.success:
         print(f"[LLM error] {llm_result.error_type}: {llm_result.user_message}")
         return
 
     # Step 3: Dangerous tool check
-    tool_names = ["check_order"]
+    tool_names = ["search_logs"]
     approval = fender.check_tools(tool_names)
     if approval.requires_approval:
         print(f"[approval] {approval.message}")

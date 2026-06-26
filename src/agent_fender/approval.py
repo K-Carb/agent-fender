@@ -108,7 +108,9 @@ def check_dedup(
 ) -> DedupCheck:
     """Check if a request key has been seen before. For idempotency.
 
-    Note: this function modifies seen_keys by adding the key on first sight.
+    Mutates seen_keys — adds the key on first sight. This is the only public
+    function in agent-fender with a side effect. Pass a copy if you need the
+    original set unchanged.
     """
     if key in seen_keys:
         return DedupCheck(is_duplicate=True, key=key)

@@ -29,7 +29,7 @@ class TestSafeToolResult:
 class TestSafeTool:
     @pytest.mark.asyncio
     async def test_sync_tool_success(self, sync_tool):
-        result = await safe_tool(sync_tool, "check_order", '{"order_id": "001"}')
+        result = await safe_tool(sync_tool, "search_files", '{"query": "SELECT 1"}')
         assert result.success is True
         assert "success" in result.data
 

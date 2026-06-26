@@ -3,19 +3,25 @@
 > **A Claude Code skill that audits your AI agent for 6 critical safety gaps.**
 > Found a gap? The companion Python library patches it in 4 lines.
 
-[![PyPI version](https://img.shields.io/pypi/v/agent-fender.svg)]()
-[![Python](https://img.shields.io/pypi/pyversions/agent-fender.svg)]()
-[![Tests](https://img.shields.io/github/actions/workflow/status/Carb/agent-fender/ci.yml?branch=main)]()
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)]()
+![Tests](https://github.com/Carb/agent-fender/actions/workflows/ci.yml/badge.svg)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 ---
 
 ## Quick Start (Skill — Recommended)
 
-1. Open Claude Code in your agent project. Say:
+1. Copy the skill into your agent project:
+   ```bash
+   # From your agent project root:
+   mkdir -p .claude/skills/agent-fender
+   cp SKILL.md .claude/skills/agent-fender/
+   cp -r references/ .claude/skills/agent-fender/
+   ```
+
+2. Open Claude Code in that project. Say:
    > "audit my agent code for safety gaps"
 
-2. You'll get a report card like:
+3. You'll get a report card like:
    ```
    ## Agent Safety Audit
    | # | Guard          | Status | Detail                              |
@@ -30,8 +36,8 @@
    Coverage: 1/6 — 5 guards missing.
    ```
 
-3. Fix them by choosing:
-   - **Option A**: `pip install agent-fender` — production-ready, zero deps (see below)
+4. Fix them by choosing:
+   - **Option A**: `pip install git+https://github.com/Carb/agent-fender.git` — production-ready, zero deps (see below)
    - **Option B**: Copy inline guard patterns — no dependency (see [references/inline-patterns.md](references/inline-patterns.md))
 
 ---
@@ -39,38 +45,50 @@
 ## Quick Start (Library — Standalone)
 
 ```bash
-pip install agent-fender
+pip install git+https://github.com/Carb/agent-fender.git
 ```
 
 ```python
+import asyncio
 from agent_fender import AgentFender, FenderConfig
 
 config = FenderConfig(
     max_loop_count=3,
     max_tool_failures=2,
-    dangerous_tools=frozenset({"cancel_order", "delete_account"}),
+    dangerous_tools=frozenset({"delete_file", "drop_table"}),
     llm_timeout_s=60.0,
     tool_timeout_s=30.0,
 )
 fender = AgentFender(config)
 
-# 1. Circuit breaker — prevents infinite loops
-breaker = fender.preflight(loop_count=2, tool_failures=0)
-if breaker.should_break:
-    return breaker.fallback_reply
+# Replace these with your real LLM and tool functions
+async def my_llm(**kwargs):
+    return {"message": {"content": "Response from LLM"}}
 
-# 2. Safe LLM — timeout + error classification
-result = await fender.safe_llm(ollama.chat, model="qwen", messages=[...])
-if not result.success:
-    return result.user_message  # error_type: timeout | connection | response
+def my_tool(name, args):
+    return f"Tool {name} completed"
 
-# 3. Dangerous tool gating — intercept before execution
-approval = fender.check_tools(["cancel_order"])
-if approval.requires_approval:
-    ...  # trigger human approval
+async def main():
+    # 1. Circuit breaker — prevents infinite loops
+    breaker = fender.preflight(loop_count=2, tool_failures=0)
+    if breaker.should_break:
+        return breaker.fallback_reply
 
-# 4. Safe tool — timeout + error classification
-tr = await fender.safe_tool(execute_tool, "check_order", '{"order_id": "001"}')
+    # 2. Safe LLM — timeout + error classification
+    result = await fender.safe_llm(my_llm, messages=[{"role": "user", "content": "hi"}])
+    if not result.success:
+        return result.user_message  # error_type: timeout | connection | response
+
+    # 3. Dangerous tool gating — intercept before execution
+    approval = fender.check_tools(["delete_file"])
+    if approval.requires_approval:
+        print(f"Approval needed: {approval.message}")
+
+    # 4. Safe tool — timeout + error classification
+    tr = await fender.safe_tool(my_tool, "search_files", '{"query": "*.log"}')
+    print(f"Tool result: {tr.data}")
+
+asyncio.run(main())
 ```
 
 ---
@@ -81,7 +99,7 @@ tr = await fender.safe_tool(execute_tool, "check_order", '{"order_id": "001"}')
 |------------------------------|-----------------------------------|------------------------|
 | "Why is it spinning forever?" | LLM or tool has no timeout        | `safe_llm()` + `safe_tool()` |
 | "Why is my bill so high?"    | Agent loops infinitely            | `preflight()` loop_count |
-| "Why was that order cancelled?" | Dangerous tool ran silently     | `check_tools()` |
+| "Why was that file deleted?" | Dangerous tool ran silently     | `check_tools()` |
 | "Why does it keep retrying after failure?" | Tool failures accumulate | `preflight()` tool_failures |
 | "Why does it work sometimes and not others?" | Errors swallowed without classification | `LLMResult.error_type` |
 
@@ -137,19 +155,7 @@ agent-fender's unique advantage is the **skill-library combination**: the skill 
 
 ## Real-World Usage
 
-[enterprise-agent](https://github.com/Carb/enterprise-agent) — a LangGraph-based customer service agent using agent-fender as its safety layer, handling 10k+ conversations/month in production.
-
----
-
-## Installation
-
-```bash
-pip install agent-fender        # PyPI (recommended)
-# or
-pip install git+https://github.com/Carb/agent-fender.git  # bleeding edge
-```
-
-Python 3.10+ required. Zero dependencies.
+See [`examples/`](examples/) for framework integration patterns with LangGraph, CrewAI, and AutoGen — each runs without API keys and demonstrates all 4 integration points.
 
 ---
 
@@ -162,6 +168,7 @@ Python 3.10+ required. Zero dependencies.
 | [references/inline-patterns.md](references/inline-patterns.md) | Minimal inline guard implementations (no dependency) |
 | [references/audit-examples.md](references/audit-examples.md) | Annotated audit results for 3 common agent patterns |
 | [examples/minimal_agent.py](examples/minimal_agent.py) | Working end-to-end example |
+| [examples/](examples/) | Framework integration examples: LangGraph, CrewAI, AutoGen |
 
 ---
 

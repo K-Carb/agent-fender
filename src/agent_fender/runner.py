@@ -1,6 +1,6 @@
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -104,9 +104,23 @@ class AgentFender:
 
     # ── fender methods ──────────────────────────────
 
-    def preflight(self, *, loop_count: int, tool_failures: int) -> CircuitBreakerResult:
-        """Check circuit breaker before each agent loop iteration."""
-        result = self._breaker.check(loop_count=loop_count, tool_failures=tool_failures)
+    def preflight(
+        self,
+        *,
+        loop_count: int,
+        tool_failures: int,
+        action_history: Sequence[str] | None = None,
+    ) -> CircuitBreakerResult:
+        """Check circuit breaker before each agent loop iteration.
+
+        Pass action_history (list of recent tool names) to detect repeated-action
+        and ping-pong loops in addition to simple iteration counting.
+        """
+        result = self._breaker.check(
+            loop_count=loop_count,
+            tool_failures=tool_failures,
+            action_history=action_history,
+        )
         if result.should_break and self._session:
             self._session.circuit_breaker_trips += 1
             self._session.circuit_breaker_reason = result.reason

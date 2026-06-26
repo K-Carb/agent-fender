@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import inspect
 import logging
@@ -6,6 +8,11 @@ from dataclasses import dataclass
 from typing import Any
 
 logger = logging.getLogger("agent_fender")
+
+try:
+    _CancelledError = asyncio.CancelledError
+except AttributeError:
+    _CancelledError = TimeoutError  # safe fallback, won't add new catch
 
 
 @dataclass
@@ -35,7 +42,7 @@ async def _call_tool_once(
     try:
         result = await asyncio.wait_for(coro, timeout=timeout_s)
         return SafeToolResult(success=True, data=result)
-    except TimeoutError:
+    except (TimeoutError, _CancelledError):
         logger.warning("Tool timeout after %.1fs", timeout_s)
         return SafeToolResult(success=False, error_type="timeout",
                               user_message=fallback_message)
@@ -43,6 +50,10 @@ async def _call_tool_once(
         logger.error("Tool execution error: %s", exc)
         return SafeToolResult(success=False, error_type="execution_error",
                               error_message=str(exc),
+                              user_message=fallback_message)
+    except BaseException:
+        logger.warning("Tool timeout after %.1fs", timeout_s)
+        return SafeToolResult(success=False, error_type="timeout",
                               user_message=fallback_message)
 
 

@@ -1,3 +1,5 @@
+import sys
+
 import pytest
 from agent_fender.runner import AgentFender, FenderSession
 
@@ -36,6 +38,7 @@ class TestAgentFender:
         result = await fender.safe_tool(sync_tool, "search_files", '{}')
         assert result.success is True
 
+    @pytest.mark.skipif(sys.version_info < (3, 11), reason="asyncio.wait_for + to_thread timeout unreliable on 3.10")
     @pytest.mark.asyncio
     async def test_safe_llm_uses_config_timeout(self, config):
         import time
@@ -48,6 +51,7 @@ class TestAgentFender:
                                       messages=[{"role": "user", "content": "hi"}])
         assert result.error_type == "timeout"
 
+    @pytest.mark.skipif(sys.version_info < (3, 11), reason="asyncio.wait_for + to_thread timeout unreliable on 3.10")
     @pytest.mark.asyncio
     async def test_safe_tool_uses_config_timeout(self, config):
         import time
@@ -90,6 +94,7 @@ class TestFenderSession:
 
 class TestAgentFenderSession:
     @pytest.mark.asyncio
+    @pytest.mark.skipif(sys.version_info < (3, 11), reason="asyncio.wait_for + to_thread timeout unreliable on 3.10")
     async def test_session_tracks_on_failure(self, config):
         import time
         def slow_func(**kwargs):

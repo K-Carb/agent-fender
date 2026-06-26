@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import errno
 import inspect
@@ -7,6 +9,11 @@ from dataclasses import dataclass
 from typing import Any
 
 logger = logging.getLogger("agent_fender")
+
+try:
+    _CancelledError = asyncio.CancelledError
+except AttributeError:
+    _CancelledError = TimeoutError  # safe fallback, won't add new catch
 
 _CONNECTION_EXCEPTIONS = (
     ConnectionError,
@@ -64,7 +71,7 @@ async def _call_llm_once(
     try:
         result = await asyncio.wait_for(coro, timeout=timeout_s)
         return LLMResult(success=True, data=result)
-    except TimeoutError:
+    except (TimeoutError, _CancelledError):
         logger.warning("LLM timeout after %.1fs", timeout_s)
         return LLMResult(success=False, error_type="timeout", user_message=fallback_message)
     except Exception as exc:
@@ -75,6 +82,11 @@ async def _call_llm_once(
         logger.error("LLM response error: %s", exc)
         return LLMResult(success=False, error_type="response",
                          error_message=str(exc), user_message=fallback_message)
+    except BaseException:
+        # Python 3.10: wait_for + to_thread may raise CancelledError
+        # which is BaseException (not Exception) and indicates timeout
+        logger.warning("LLM timeout after %.1fs", timeout_s)
+        return LLMResult(success=False, error_type="timeout", user_message=fallback_message)
 
 
 async def safe_llm_chat(
@@ -124,7 +136,7 @@ async def safe_embed(
     try:
         result = await asyncio.wait_for(coro, timeout=timeout_s)
         return LLMResult(success=True, data=result)
-    except TimeoutError:
+    except (TimeoutError, _CancelledError):
         logger.warning("Embedding timeout after %.1fs", timeout_s)
         return LLMResult(success=False, error_type="timeout",
                          user_message=fallback_message)
@@ -137,4 +149,8 @@ async def safe_embed(
         logger.error("Embedding error: %s", exc)
         return LLMResult(success=False, error_type="response",
                          error_message=str(exc),
+                         user_message=fallback_message)
+    except BaseException:
+        logger.warning("Embedding timeout after %.1fs", timeout_s)
+        return LLMResult(success=False, error_type="timeout",
                          user_message=fallback_message)

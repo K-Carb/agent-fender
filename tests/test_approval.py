@@ -1,7 +1,5 @@
 from agent_fender.approval import (
     ApprovalCheck,
-    DedupCheck,
-    InjectionCheck,
     check_dangerous,
     check_dedup,
     check_injection,

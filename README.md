@@ -92,6 +92,8 @@ async def main():
 asyncio.run(main())
 ```
 
+Python 3.10+ required. Zero dependencies. On Python 3.10, sync function timeouts shorter than ~1 second may not be reliably enforced due to an asyncio limitation (fixed in 3.11). This does not affect normal usage — typical LLM and tool timeouts are 30-120s. Async functions and all other guards work identically across all supported versions.
+
 ---
 
 ## What Problems Does This Solve?

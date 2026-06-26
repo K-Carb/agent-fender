@@ -1,7 +1,7 @@
 # agent-fender
 
-> **A Claude Code skill that audits your AI agent for 6 critical safety gaps.**
-> Found a gap? The companion Python library patches it in 4 lines.
+> **AI wrote your agent code. Who checked it for 6 critical safety gaps?**
+> agent-fender did. And if we found gaps, the companion library patches them in 4 lines.
 
 ![Tests](https://github.com/Carb/agent-fender/actions/workflows/ci.yml/badge.svg)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
@@ -150,6 +150,8 @@ agent-fender is the only library that combines all 6 guards in one zero-dependen
 | **Code audit (push model)** | ✅ | ❌ | ❌ |
 
 agent-fender's unique advantage is the **skill-library combination**: the skill finds your agent's safety gaps during development, and the library fixes them with all 6 guards in one package. Other libraries wait for you to find them on PyPI.
+
+AI tools can generate guard code in seconds. But generated code has no tests, no edge case coverage, no guarantee it catches all 6 gaps. agent-fender ships 106 tests across every guard — certainty, not just code.
 
 ---
 

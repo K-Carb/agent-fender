@@ -72,7 +72,7 @@ Present two options and let the user choose:
 **Option A: Use the `agent_fender` library** — production-ready, zero dependencies.
 
 ```bash
-pip install git+https://github.com/Carb/agent-fender.git
+pip install git+https://github.com/K-Carb/agent-fender.git
 ```
 
 Integration: wrap LLM calls with `fender.safe_llm()`, tool calls with `fender.safe_tool()`, add `fender.preflight()` at loop top, add `fender.check_tools()` before tool execution. See `references/library-integration.md` for the full 4-line integration pattern.

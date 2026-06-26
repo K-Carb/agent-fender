@@ -42,9 +42,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Carb/agent-fender"
-Repository = "https://github.com/Carb/agent-fender"
-Issues = "https://github.com/Carb/agent-fender/issues"
+Homepage = "https://github.com/K-Carb/agent-fender"
+Repository = "https://github.com/K-Carb/agent-fender"
+Issues = "https://github.com/K-Carb/agent-fender/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.25"]

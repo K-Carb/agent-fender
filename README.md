@@ -3,7 +3,7 @@
 > **AI wrote your agent code. Who checked it for 7 critical safety gaps?**
 > agent-fender did. And if we found gaps, the companion library patches them in 4 lines.
 
-![Tests](https://github.com/Carb/agent-fender/actions/workflows/ci.yml/badge.svg)
+![Tests](https://github.com/K-Carb/agent-fender/actions/workflows/ci.yml/badge.svg)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 ---
@@ -38,7 +38,7 @@
    ```
 
 4. Fix them by choosing:
-   - **Option A**: `pip install git+https://github.com/Carb/agent-fender.git` — production-ready, zero deps (see below)
+   - **Option A**: `pip install git+https://github.com/K-Carb/agent-fender.git` — production-ready, zero deps (see below)
    - **Option B**: Copy inline guard patterns — no dependency (see [references/inline-patterns.md](references/inline-patterns.md))
 
 ---
@@ -46,7 +46,7 @@
 ## Quick Start (Library — Standalone)
 
 ```bash
-pip install git+https://github.com/Carb/agent-fender.git
+pip install git+https://github.com/K-Carb/agent-fender.git
 ```
 
 ```python

@@ -5,7 +5,7 @@ Full integration of the `agent_fender` library into an AI agent. Covers the 4-li
 ## Install
 
 ```bash
-pip install git+https://github.com/Carb/agent-fender.git
+pip install git+https://github.com/K-Carb/agent-fender.git
 ```
 
 ## Setup

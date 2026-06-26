@@ -3,7 +3,7 @@
 ## Setup
 
 ```bash
-git clone https://github.com/Carb/agent-fender.git
+git clone https://github.com/K-Carb/agent-fender.git
 cd agent-fender
 pip install -e ".[dev]"
 ```

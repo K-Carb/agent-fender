@@ -1,19 +1,21 @@
 ---
 name: agent-fender
-description: This skill should be used when writing, reviewing, or debugging AI agent code. Covers runtime safety guardrails: LLM timeout, loop limit, tool timeout, dangerous-tool gating, injection detection, and audit trail. Activate when user mentions agent, LLM, tool calling, LangGraph, CrewAI, AutoGen, OpenAI tools, or asks to "audit my agent", "check my agent for safety", "add guardrails", or "why is my agent failing".
+description: This skill should be used when writing, reviewing, or debugging AI agent code. Covers runtime safety guardrails: LLM timeout, loop limit, tool timeout, dangerous-tool gating, injection detection, audit trail, and token budget control. Activate when user mentions agent, LLM, tool calling, LangGraph, CrewAI, AutoGen, OpenAI tools, or asks to "audit my agent", "check my agent for safety", "add guardrails", or "why is my agent failing".
 ---
 
 # Agent Fender
 
+> This skill implements the [Agent Safety Specification](AGENT_SAFETY_SPEC.md). See the spec for the authoritative definition of all 7 guards.
+
 ## The Iron Law
 
 ```
-EVERY AI AGENT MUST HAVE 6 GUARDS. MISSING EVEN ONE IS A BUG, NOT A FEATURE GAP.
+EVERY AI AGENT MUST HAVE 7 GUARDS. MISSING EVEN ONE IS A BUG, NOT A FEATURE GAP.
 ```
 
 Agent code without these guards is incomplete — regardless of how well the business logic works. Errors without classification, loops without limits, and user input without inspection are not "future improvements." They are defects that will surface in production.
 
-## The 6 Guards
+## The 7 Guards
 
 | # | Guard | What to Verify | Severity |
 |---|-------|---------------|----------|
@@ -23,6 +25,7 @@ Agent code without these guards is incomplete — regardless of how well the bus
 | 4 | **Dangerous tool gating** | Write/delete/execute/send operations intercepted before execution. Human approval gate for dangerous actions. | High |
 | 5 | **Injection detection** | User-supplied text scanned for prompt injection patterns before reaching the LLM. | High |
 | 6 | **Audit trail** | Structured tracking of LLM calls, tool calls, errors, and decisions. Not `print()` statements. | Medium |
+| 7 | **Token budget control** | Per-invocation token consumption limit set before execution. Agent stops when budget exhausted. (Library implementation pending — v0.2) | Critical |
 
 ## When to Activate
 
@@ -41,7 +44,7 @@ Activate when the user's request involves agent code and any of:
 When the user provides agent code to audit:
 
 1. Read the full agent source
-2. Check each of the 6 guards against the actual code
+2. Check each of the 7 guards against the actual code
 3. Report findings in this exact format:
 
 ```
@@ -55,8 +58,9 @@ When the user provides agent code to audit:
 | 4 | Dangerous tool gating | ✗ | No approval check before delete_record |
 | 5 | Injection detection | ✗ | User input goes directly to LLM |
 | 6 | Audit trail | ✗ | print() only, no structured logging |
+| 7 | Token budget | ✗ | No per-invocation token limit set |
 
-Coverage: 1/6 — 5 guards missing.
+Coverage: 1/7 — 6 guards missing.
 ```
 
 4. If any guards are missing, offer to fix them (see Fix Mode)
@@ -75,15 +79,15 @@ Integration: wrap LLM calls with `fender.safe_llm()`, tool calls with `fender.sa
 
 **Option B: Inline guard patterns** — no dependency, minimal implementations.
 
-Generate only the missing guards directly in the user's code. See `references/inline-patterns.md` for canonical implementations of all 6 guards. Copy only what's missing; never generate all 6 if only 2 are needed.
+Generate only the missing guards directly in the user's code. See `references/inline-patterns.md` for canonical implementations of all 7 guards. Copy only what's missing; never generate all 6 if only 2 are needed.
 
 ### Generate Mode
 
-When generating new agent code from scratch, include all 6 guards by default. Offer the user the choice between library-based and inline-based code. Never generate bare agent code without guards unless the user explicitly asks for a minimal demo or prototype.
+When generating new agent code from scratch, include all 7 guards by default. Offer the user the choice between library-based and inline-based code. Never generate bare agent code without guards unless the user explicitly asks for a minimal demo or prototype.
 
 ## Red Flags
 
-If any of these thoughts occur, STOP and apply the 6-guard check:
+If any of these thoughts occur, STOP and apply the 7-guard check:
 
 - "This agent is simple, it doesn't need guards"
 - "The user didn't ask for safety, just build the agent"
@@ -103,6 +107,7 @@ Framework built-in features do not replace these guards. LangGraph checkpointing
 | 4. Dangerous gating | Are write/delete/execute operations intercepted? | `if tool_name in DANGEROUS: ask_approval()` |
 | 5. Injection scan | Is user input scanned before reaching the LLM? | `if check_injection(user_text): block()` |
 | 6. Audit trail | Can you trace what happened after a failure? | Structured log with event types and error classification |
+| 7. Token budget | Is there a per-invocation token limit? | `if tokens_used > token_limit: stop()` (v0.2) |
 
 ## Scope
 
@@ -117,6 +122,6 @@ This skill covers **runtime safety** for agent execution. It does not cover:
 
 Detailed implementations and patterns live in:
 
-- **`references/inline-patterns.md`** — Minimal inline implementations of all 6 guards (no dependency)
+- **`references/inline-patterns.md`** — Minimal inline implementations of all 7 guards (no dependency)
 - **`references/library-integration.md`** — Full `agent_fender` library integration guide with examples
 - **`references/audit-examples.md`** — Annotated audit results for common agent patterns

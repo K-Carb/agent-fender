@@ -1,6 +1,6 @@
 # agent-fender
 
-> **AI wrote your agent code. Who checked it for 6 critical safety gaps?**
+> **AI wrote your agent code. Who checked it for 7 critical safety gaps?**
 > agent-fender did. And if we found gaps, the companion library patches them in 4 lines.
 
 ![Tests](https://github.com/Carb/agent-fender/actions/workflows/ci.yml/badge.svg)
@@ -32,8 +32,9 @@
    | 4 | Dangerous tools| ✗      | No approval before delete_record     |
    | 5 | Injection scan | ✗      | User input goes directly to LLM      |
    | 6 | Audit trail    | ✗      | print() only, no structured logging   |
+   | 7 | Token budget   | ✗      | No per-invocation token limit set     |
 
-   Coverage: 1/6 — 5 guards missing.
+   Coverage: 1/7 — 6 guards missing.
    ```
 
 4. Fix them by choosing:
@@ -107,7 +108,9 @@ Full failure mode catalog: [docs/failure-modes.md](docs/failure-modes.md)
 
 ---
 
-## The 6 Guards
+## The 7 Guards
+
+Defined by the [Agent Safety Specification](AGENT_SAFETY_SPEC.md). The library currently implements 6 of 7 (Token Budget Control is v0.2).
 
 | # | Guard                        | Severity | What it does                                          |
 |---|------------------------------|----------|-------------------------------------------------------|
@@ -117,6 +120,7 @@ Full failure mode catalog: [docs/failure-modes.md](docs/failure-modes.md)
 | 4 | Dangerous tool gating        | High     | Write/delete/execute operations intercepted before execution |
 | 5 | Injection detection          | High     | User input scanned for prompt injection patterns before reaching the LLM |
 | 6 | Audit trail                  | Medium   | Structured tracking of all calls, errors, and decisions |
+| 7 | Token budget control         | Critical | Per-invocation token consumption limit; stops the agent before it burns budget |
 
 ---
 
@@ -132,7 +136,7 @@ Full failure mode catalog: [docs/failure-modes.md](docs/failure-modes.md)
 
 ## How This Compares
 
-agent-fender is the only library that combines all 6 guards in one zero-dependency package, AND the only one with a Claude Code skill for agent code auditing.
+agent-fender is the only library that combines all 7 guards in one zero-dependency package, AND the only one with a Claude Code skill for agent code auditing.
 
 | Feature                    | agent-fender | agentguard-llm | Aura Guard |
 |----------------------------|:-----------:|:--------------:|:----------:|
@@ -145,13 +149,13 @@ agent-fender is the only library that combines all 6 guards in one zero-dependen
 | Deduplication               | ✅ | ✅ | ✅ |
 | Audit trail                 | ✅ | ✅ | ✅ |
 | Retry with backoff          | ✅ | ✅ | ❌ |
-| Budget enforcement          | ❌ | ✅ | ❌ |
+| Token budget control        | ❌ (v0.2) | ✅ | ❌ |
 | **Claude Code skill**       | ✅ | ❌ | ❌ |
 | **Code audit (push model)** | ✅ | ❌ | ❌ |
 
-agent-fender's unique advantage is the **skill-library combination**: the skill finds your agent's safety gaps during development, and the library fixes them with all 6 guards in one package. Other libraries wait for you to find them on PyPI.
+agent-fender's unique advantage is the **skill-library combination**: the skill finds your agent's safety gaps during development, and the library fixes them with all 7 guards in one package. Other libraries wait for you to find them on PyPI.
 
-AI tools can generate guard code in seconds. But generated code has no tests, no edge case coverage, no guarantee it catches all 6 gaps. agent-fender ships 106 tests across every guard — certainty, not just code.
+AI tools can generate guard code in seconds. But generated code has no tests, no edge case coverage, no guarantee it catches all 7 gaps. agent-fender ships 106 tests across every guard — certainty, not just code.
 
 ---
 
@@ -165,7 +169,8 @@ See [`examples/`](examples/) for framework integration patterns with LangGraph, 
 
 | Document | Description |
 |----------|-------------|
-| [docs/failure-modes.md](docs/failure-modes.md) | 7 real-world agent failure scenarios and how agent-fender prevents each |
+| [AGENT_SAFETY_SPEC.md](AGENT_SAFETY_SPEC.md) | Authoritative definition of the 7 agent safety guards |
+| [docs/failure-modes.md](docs/failure-modes.md) | 8 real-world agent failure scenarios and how agent-fender prevents each |
 | [references/library-integration.md](references/library-integration.md) | Full 4-step integration guide for the Python library |
 | [references/inline-patterns.md](references/inline-patterns.md) | Minimal inline guard implementations (no dependency) |
 | [references/audit-examples.md](references/audit-examples.md) | Annotated audit results for 3 common agent patterns |

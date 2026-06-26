@@ -1,6 +1,6 @@
 # Agent Failure Mode Catalog
 
-The 7 most common fatal scenarios when building AI agents, and how agent-fender defends against each.
+The 8 most common fatal scenarios when building AI agents, and how agent-fender defends against each.
 
 ---
 
@@ -57,7 +57,37 @@ if breaker.should_break:
 
 ---
 
-## 3. "Why was that file deleted?" — Silent Dangerous Execution
+## 3. "Why did a simple request cost $47?" — No Token Budget
+
+**Without guardrails**: The agent works correctly — no loops, no timeouts, no errors. But a single conversation makes 15 LLM calls with large prompts, burning 200k tokens. The developer discovers this when the API bill arrives. Guards 1–6 cover execution safety; none of them cover resource consumption.
+
+```python
+# Before: no token tracking
+async def action_node(state):
+    response = await llm.call(messages=state.messages, tools=[...])
+    # Each call uses context window, but no one is counting
+```
+
+**With agent-fender** (v0.2):
+
+```python
+# After: token budget in preflight
+breaker = fender.preflight(
+    loop_count=state.loop_count,
+    tool_failures=failures,
+    tokens_used=session.total_tokens,
+)
+if breaker.should_break:
+    return {"final_reply": breaker.fallback_reply}
+```
+
+**Defense**: `AgentFender.preflight()` checks cumulative token usage against a configurable limit. The agent stops before the bill does.
+
+> **Status**: Token budget control is defined in the spec but not yet implemented. v0.2.
+
+---
+
+## 4. "Why was that file deleted?" — Silent Dangerous Execution
 
 **Without guardrails**: LLM selects `delete_file` and executes it immediately without any human confirmation.
 
@@ -82,7 +112,7 @@ if approval.requires_approval:
 
 ---
 
-## 4. "Why was it deleted when I just said 'yes'?" — Accidental Approval
+## 5. "Why was it deleted when I just said 'yes'?" — Accidental Approval
 
 **Without guardrails**: Keyword matching happens before pending-check. A previous approval is still pending, the user says "yes" in normal conversation, and it's misinterpreted as approving the cancellation.
 
@@ -109,7 +139,7 @@ if _has_pending_interrupt(thread_id):
 
 ---
 
-## 5. "Why does it keep retrying after failure?" — Tool Cascade Failure
+## 6. "Why does it keep retrying after failure?" — Tool Cascade Failure
 
 **Without guardrails**: One tool fails, the LLM picks another tool and keeps going. Errors accumulate until unrecoverable.
 
@@ -138,7 +168,7 @@ for tc in raw_calls:
 
 ---
 
-## 6. "Why does it forget everything after restart?" — In-Memory Amnesia
+## 7. "Why does it forget everything after restart?" — In-Memory Amnesia
 
 **Without guardrails**: `MemorySaver()` stores all state in process memory. `uvicorn --reload` or `docker restart` → everything is lost.
 
@@ -159,7 +189,7 @@ graph.compile(checkpointer=SqliteSaver.from_conn_string("checkpoints.db"))
 
 ---
 
-## 7. "Why does it work sometimes but not others?" — Errors Silently Swallowed
+## 8. "Why does it work sometimes but not others?" — Errors Silently Swallowed
 
 **Without guardrails**: Bare `try/except` returns only "Service unavailable" without distinguishing timeout/connection/format errors. Debugging means guessing from logs.
 

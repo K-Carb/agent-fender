@@ -10,15 +10,12 @@
 
 ## Quick Start (Skill — Recommended)
 
-1. Copy the skill into your agent project:
+1. Install via skills CLI:
    ```bash
-   # From your agent project root:
-   mkdir -p .claude/skills/agent-fender
-   cp SKILL.md .claude/skills/agent-fender/
-   cp -r references/ .claude/skills/agent-fender/
+   npx skills add K-Carb/agent-fender
    ```
 
-2. Open Claude Code in that project. Say:
+2. Open Claude Code in your agent project. Say:
    > "audit my agent code for safety gaps"
 
 3. You'll get a report card like:

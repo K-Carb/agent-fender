@@ -5,7 +5,7 @@ description: This skill should be used when writing, reviewing, or debugging AI 
 
 # Agent Fender
 
-> This skill implements the [Agent Safety Specification](AGENT_SAFETY_SPEC.md). See the spec for the authoritative definition of all 7 guards.
+> This skill implements the [Agent Safety Specification](../AGENT_SAFETY_SPEC.md). See the spec for the authoritative definition of all 7 guards.
 
 ## The Iron Law
 

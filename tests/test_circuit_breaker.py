@@ -154,3 +154,60 @@ class TestCircuitBreakerWithActionHistory:
                           action_history=["search_files", "get_metrics"])
         assert result.should_break is True
         assert result.reason == "max_loops"
+
+
+class TestCircuitBreakerTokenBudget:
+    def test_token_budget_disabled_when_zero(self, config):
+        """token_budget=0 means disabled — never trips."""
+        cb = CircuitBreaker(config)
+        result = cb.check(loop_count=1, tool_failures=0, tokens_used=999_999)
+        assert result.should_break is False
+
+    def test_token_budget_trips_when_exceeded(self, config):
+        config.token_budget = 100_000
+        cb = CircuitBreaker(config)
+        result = cb.check(loop_count=1, tool_failures=0, tokens_used=100_000)
+        assert result.should_break is True
+        assert result.reason == "token_budget"
+        assert result.fallback_reply == config.circuit_breaker_reply
+
+    def test_token_budget_not_tripped_when_under(self, config):
+        config.token_budget = 100_000
+        cb = CircuitBreaker(config)
+        result = cb.check(loop_count=1, tool_failures=0, tokens_used=50_000)
+        assert result.should_break is False
+
+    def test_token_budget_checked_after_loop_count(self, config):
+        """When both exceed limits, max_loops wins (checked first)."""
+        config.token_budget = 100_000
+        cb = CircuitBreaker(config)
+        result = cb.check(loop_count=5, tool_failures=0, tokens_used=999_999)
+        assert result.should_break is True
+        assert result.reason == "max_loops"
+
+    def test_token_budget_exact_boundary(self, config):
+        """tokens_used == budget trips (>= check)."""
+        config.token_budget = 1000
+        cb = CircuitBreaker(config)
+        result = cb.check(loop_count=1, tool_failures=0, tokens_used=1000)
+        assert result.should_break is True
+        assert result.reason == "token_budget"
+
+    def test_token_budget_zero_tokens_used(self, config):
+        """tokens_used=0, budget>0 → normal operation."""
+        config.token_budget = 100_000
+        cb = CircuitBreaker(config)
+        result = cb.check(loop_count=1, tool_failures=0, tokens_used=0)
+        assert result.should_break is False
+
+    def test_token_budget_checked_last(self, config):
+        """action_loop + loop_count + tool_failures + token_budget all exceed:
+        action_loop triggers first since it has the highest-priority check order."""
+        config.token_budget = 100_000
+        cb = CircuitBreaker(config)
+        result = cb.check(
+            loop_count=5, tool_failures=5, tokens_used=999_999,
+            action_history=["x", "x", "x"],
+        )
+        assert result.should_break is True
+        assert result.reason == "repeated_action"

@@ -59,6 +59,7 @@ config = FenderConfig(
     dangerous_tools=frozenset({"delete_file", "drop_table"}),
     llm_timeout_s=60.0,
     tool_timeout_s=30.0,
+    token_budget=100_000,  # Stop after 100K tokens
 )
 fender = AgentFender(config)
 
@@ -70,8 +71,9 @@ def my_tool(name, args):
     return f"Tool {name} completed"
 
 async def main():
-    # 1. Circuit breaker — prevents infinite loops
-    breaker = fender.preflight(loop_count=2, tool_failures=0)
+    # 1. Circuit breaker — prevents infinite loops + enforces token budget
+    tokens_used = 0
+    breaker = fender.preflight(loop_count=2, tool_failures=0, tokens_used=tokens_used)
     if breaker.should_break:
         return breaker.fallback_reply
 
@@ -79,6 +81,7 @@ async def main():
     result = await fender.safe_llm(my_llm, messages=[{"role": "user", "content": "hi"}])
     if not result.success:
         return result.user_message  # error_type: timeout | connection | response
+    tokens_used += fender.count_tokens(str(result.data))
 
     # 3. Dangerous tool gating — intercept before execution
     approval = fender.check_tools(["delete_file"])
@@ -112,7 +115,7 @@ Full failure mode catalog: [docs/failure-modes.md](docs/failure-modes.md)
 
 ## The 7 Guards
 
-Defined by the [Agent Safety Specification](AGENT_SAFETY_SPEC.md). The library currently implements 6 of 7 (Token Budget Control is v0.2).
+Defined by the [Agent Safety Specification](AGENT_SAFETY_SPEC.md). The library implements all 7 guards.
 
 | # | Guard                        | Severity | What it does                                          |
 |---|------------------------------|----------|-------------------------------------------------------|
@@ -122,7 +125,7 @@ Defined by the [Agent Safety Specification](AGENT_SAFETY_SPEC.md). The library c
 | 4 | Dangerous tool gating        | High     | Write/delete/execute operations intercepted before execution |
 | 5 | Injection detection          | High     | User input scanned for prompt injection patterns before reaching the LLM |
 | 6 | Audit trail                  | Medium   | Structured tracking of all calls, errors, and decisions |
-| 7 | Token budget control         | Critical | Per-invocation token consumption limit; stops the agent before it burns budget |
+| 7 | Token budget control         | Critical | Per-invocation token consumption limit set via `token_budget`; stops the agent before it burns budget |
 
 ---
 
@@ -151,7 +154,7 @@ agent-fender is the only library that combines all 7 guards in one zero-dependen
 | Deduplication               | ✅ | ✅ | ✅ |
 | Audit trail                 | ✅ | ✅ | ✅ |
 | Retry with backoff          | ✅ | ✅ | ❌ |
-| Token budget control        | ❌ (v0.2) | ✅ | ❌ |
+| Token budget control        | ✅ | ✅ | ❌ |
 | **Claude Code skill**       | ✅ | ❌ | ❌ |
 | **Code audit (push model)** | ✅ | ❌ | ❌ |
 

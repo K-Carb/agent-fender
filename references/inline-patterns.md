@@ -165,3 +165,33 @@ Key points:
 - Tracks every LLM call, tool call, approval check, and injection scan
 - `summary()` for quick diagnosis, `to_json()` for export
 - Integrate into the agent loop: call `audit.log("llm_call", result.success)` after each operation
+
+## Guard 7: Token Budget Control
+
+```python
+TOKEN_BUDGET = 100_000  # Max tokens per invocation (0 = disabled)
+
+def count_tokens(text):
+    """Approximate token count: 4 chars ≈ 1 English token."""
+    return len(text) // 4
+
+# Usage — accumulate across LLM calls and check before each iteration:
+tokens_used = 0
+
+while loop_count < MAX_LOOPS:
+    # ... LLM call ...
+    response = await llm.chat(messages=[...], tools=[...])
+    tokens_used += count_tokens(str(response))
+
+    # Check BEFORE the next LLM call
+    if TOKEN_BUDGET > 0 and tokens_used >= TOKEN_BUDGET:
+        return {"final_reply": "Token budget exceeded."}
+
+    loop_count += 1
+```
+
+Key points:
+- Set `TOKEN_BUDGET` per invocation — the agent stops when accumulated tokens hit the limit
+- Check BEFORE the next LLM call, not after — prevents one last expensive call
+- `len(text)//4` is a conservative approximation for English; use tiktoken for precise counting
+- Token budget complements loop limit — they address different dimensions of the same problem

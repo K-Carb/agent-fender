@@ -25,7 +25,7 @@ Agent code without these guards is incomplete — regardless of how well the bus
 | 4 | **Dangerous tool gating** | Write/delete/execute/send operations intercepted before execution. Human approval gate for dangerous actions. | High |
 | 5 | **Injection detection** | User-supplied text scanned for prompt injection patterns before reaching the LLM. | High |
 | 6 | **Audit trail** | Structured tracking of LLM calls, tool calls, errors, and decisions. Not `print()` statements. | Medium |
-| 7 | **Token budget control** | Per-invocation token consumption limit set before execution. Agent stops when budget exhausted. (Library implementation pending — v0.2) | Critical |
+| 7 | **Token budget control** | Per-invocation token consumption limit set before execution. Agent stops when budget exhausted. | Critical |
 
 ## When to Activate
 
@@ -107,7 +107,7 @@ Framework built-in features do not replace these guards. LangGraph checkpointing
 | 4. Dangerous gating | Are write/delete/execute operations intercepted? | `if tool_name in DANGEROUS: ask_approval()` |
 | 5. Injection scan | Is user input scanned before reaching the LLM? | `if check_injection(user_text): block()` |
 | 6. Audit trail | Can you trace what happened after a failure? | Structured log with event types and error classification |
-| 7. Token budget | Is there a per-invocation token limit? | `if tokens_used > token_limit: stop()` (v0.2) |
+| 7. Token budget | Is there a per-invocation token limit? | `fender.count_tokens(text)` + `preflight(tokens_used=...)` |
 
 ## Scope
 

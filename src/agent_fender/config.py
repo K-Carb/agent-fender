@@ -1,9 +1,10 @@
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 
 @dataclass
 class FenderConfig:
-    """Configuration for all 6 agent safety guards.
+    """Configuration for all 7 agent safety guards.
 
     Args:
         max_loop_count: Max agent loop iterations before circuit breaker trips.
@@ -19,6 +20,8 @@ class FenderConfig:
         retry_base_delay_s: Base delay in seconds between retries (doubles each attempt).
         max_repeated_actions: Same action N times in a row triggers circuit break (0 = disabled).
         max_action_sequence_repeats: A,B pattern repeating N times triggers circuit break (0 = disabled).
+        token_budget: Max tokens per invocation (0 = disabled, backward compatible).
+        token_counter: Custom token counting function (None = len(text)//4 approximation).
     """
 
     max_loop_count: int = 3
@@ -34,6 +37,8 @@ class FenderConfig:
     retry_base_delay_s: float = 1.0
     max_repeated_actions: int = 3
     max_action_sequence_repeats: int = 2
+    token_budget: int = 0
+    token_counter: Callable[[str], int] | None = None
 
     def __post_init__(self):
         if self.max_loop_count < 1:
@@ -54,3 +59,5 @@ class FenderConfig:
             raise ValueError(f"max_repeated_actions must be >= 0, got {self.max_repeated_actions}")
         if self.max_action_sequence_repeats < 0:
             raise ValueError(f"max_action_sequence_repeats must be >= 0, got {self.max_action_sequence_repeats}")
+        if self.token_budget < 0:
+            raise ValueError(f"token_budget must be >= 0, got {self.token_budget}")

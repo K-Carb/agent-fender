@@ -141,3 +141,46 @@ class TestAgentFenderSession:
         assert fender.session.injection_blocks == 1
         assert fender.session.dedup_checks == 2
         assert fender.session.dedup_hits == 1
+
+
+class TestAgentFenderTokenBudget:
+    @pytest.fixture
+    def fender(self, config):
+        return AgentFender(config)
+
+    def test_count_tokens_default_approx(self, fender):
+        # 4 chars ≈ 1 token
+        assert fender.count_tokens("hello world") == len("hello world") // 4
+
+    def test_count_tokens_with_custom_counter(self, config):
+        config.token_counter = lambda text: 42
+        fender = AgentFender(config)
+        assert fender.count_tokens("anything") == 42
+
+    def test_preflight_passes_tokens_used(self, config):
+        config.token_budget = 100_000
+        fender = AgentFender(config)
+        result = fender.preflight(loop_count=1, tool_failures=0, tokens_used=50_000)
+        assert result.should_break is False
+
+    def test_preflight_token_budget_break(self, config):
+        config.token_budget = 100_000
+        fender = AgentFender(config)
+        result = fender.preflight(loop_count=1, tool_failures=0, tokens_used=100_000)
+        assert result.should_break is True
+        assert result.reason == "token_budget"
+
+    def test_session_tracks_token_budget_trip(self, config):
+        config.token_budget = 100_000
+        fender = AgentFender(config)
+        fender.start_session()
+        fender.preflight(loop_count=1, tool_failures=0, tokens_used=100_000)
+        assert fender.session is not None
+        assert fender.session.token_budget_trips == 1
+        assert fender.session.circuit_breaker_trips == 1
+        assert fender.session.circuit_breaker_reason == "token_budget"
+
+    def test_token_budget_backward_compat(self, fender):
+        """Not passing tokens_used defaults to 0, existing behavior unchanged."""
+        result = fender.preflight(loop_count=1, tool_failures=0)
+        assert result.should_break is False

@@ -12,7 +12,7 @@ logger = logging.getLogger("agent_fender")
 @dataclass
 class CircuitBreakerResult:
     should_break: bool
-    reason: str | None = None            # "max_loops" | "max_tool_failures" | "repeated_action" | "action_loop"
+    reason: str | None = None            # "max_loops" | "max_tool_failures" | "repeated_action" | "action_loop" | "token_budget"
     fallback_reply: str | None = None
 
 
@@ -72,7 +72,7 @@ def check_action_loop(
 
 
 class CircuitBreaker:
-    """Checks loop_count, tool_failures, and action_history against configured thresholds."""
+    """Checks loop_count, tool_failures, action_history, and tokens_used against configured thresholds."""
 
     def __init__(self, config: FenderConfig):
         self.config = config
@@ -83,6 +83,7 @@ class CircuitBreaker:
         loop_count: int,
         tool_failures: int,
         action_history: Sequence[str] | None = None,
+        tokens_used: int = 0,
     ) -> CircuitBreakerResult:
         """Return whether the circuit should break based on current counts and action history."""
         if action_history:
@@ -109,6 +110,14 @@ class CircuitBreaker:
             return CircuitBreakerResult(
                 should_break=True,
                 reason="max_tool_failures",
+                fallback_reply=self.config.circuit_breaker_reply,
+            )
+        if self.config.token_budget > 0 and tokens_used >= self.config.token_budget:
+            logger.warning("Circuit breaker: token_budget (%d >= %d)",
+                           tokens_used, self.config.token_budget)
+            return CircuitBreakerResult(
+                should_break=True,
+                reason="token_budget",
                 fallback_reply=self.config.circuit_breaker_reply,
             )
         return CircuitBreakerResult(should_break=False)

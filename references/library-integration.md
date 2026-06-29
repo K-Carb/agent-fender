@@ -112,6 +112,34 @@ if dedup.is_duplicate:
     return {"final_reply": "Duplicate request, already processed."}
 ```
 
+## Optional: Token Budget Control
+
+```python
+# Set a token budget in config:
+config = FenderConfig(token_budget=100_000)  # 100K token limit
+
+# Accumulate tokens across LLM calls:
+tokens_used = 0
+for iteration in range(max_loops):
+    result = await fender.safe_llm(llm.chat, messages=[...])
+    if result.success:
+        tokens_used += fender.count_tokens(str(result.data))
+
+    # Token budget checked in preflight before next LLM call:
+    breaker = fender.preflight(
+        loop_count=iteration,
+        tool_failures=failures,
+        tokens_used=tokens_used,
+    )
+    if breaker.should_break:
+        return {"final_reply": breaker.fallback_reply}
+```
+
+- Default counting: `len(text) // 4` (approximate, 4 chars ≈ 1 English token)
+- For precise counting, pass `token_counter=your_tiktoken_counter` to `FenderConfig`
+- `token_budget=0` (default) disables the budget check — fully backward compatible
+- `CircuitBreakerResult.reason == "token_budget"` when the budget is exceeded
+
 ## Optional: Audit Session
 
 ```python

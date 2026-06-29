@@ -35,6 +35,7 @@ class FenderSession:
     tool_execution_errors: int = 0
     circuit_breaker_trips: int = 0
     circuit_breaker_reason: str | None = None
+    token_budget_trips: int = 0
     approval_checks: int = 0
     approvals_required: int = 0
     injection_checks: int = 0
@@ -74,7 +75,7 @@ class FenderSession:
 
 
 class AgentFender:
-    """Facade that combines all 6 guards into a 4-step agent safety API.
+    """Facade that combines all 7 guards into a 4-step agent safety API.
 
     Usage:
         fender = AgentFender(FenderConfig(...))
@@ -112,21 +113,37 @@ class AgentFender:
         loop_count: int,
         tool_failures: int,
         action_history: Sequence[str] | None = None,
+        tokens_used: int = 0,
     ) -> CircuitBreakerResult:
         """Check circuit breaker before each agent loop iteration.
 
         Pass action_history (list of recent tool names) to detect repeated-action
         and ping-pong loops in addition to simple iteration counting.
+        Pass tokens_used (cumulative token count) to enforce token budget.
         """
         result = self._breaker.check(
             loop_count=loop_count,
             tool_failures=tool_failures,
             action_history=action_history,
+            tokens_used=tokens_used,
         )
         if result.should_break and self._session:
             self._session.circuit_breaker_trips += 1
             self._session.circuit_breaker_reason = result.reason
+            if result.reason == "token_budget":
+                self._session.token_budget_trips += 1
         return result
+
+    def count_tokens(self, text: str) -> int:
+        """Count tokens in text using the configured token_counter.
+
+        Uses len(text)//4 as default approximation (4 chars ≈ 1 English token).
+        For production use with CJK text or code, pass a precise counter
+        (e.g., tiktoken) via FenderConfig.token_counter.
+        """
+        if self.config.token_counter is not None:
+            return self.config.token_counter(text)
+        return len(text) // 4
 
     async def safe_llm(
         self, llm_call: Callable[..., Any], *, timeout_s: float | None = None, **kwargs: Any

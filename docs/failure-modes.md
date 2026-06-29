@@ -68,22 +68,30 @@ async def action_node(state):
     # Each call uses context window, but no one is counting
 ```
 
-**With agent-fender** (v0.2):
+**With agent-fender**:
 
 ```python
-# After: token budget in preflight
+# After: token budget in config + preflight
+config = FenderConfig(token_budget=100_000)  # 100K token limit
+fender = AgentFender(config)
+
+# In the agent loop — accumulate token usage
+tokens_used = 0
+result = await fender.safe_llm(llm.chat, messages=[...])
+if result.success:
+    tokens_used += fender.count_tokens(str(result.data))
+
+# Check at preflight before the next LLM call
 breaker = fender.preflight(
     loop_count=state.loop_count,
     tool_failures=failures,
-    tokens_used=session.total_tokens,
+    tokens_used=tokens_used,
 )
 if breaker.should_break:
     return {"final_reply": breaker.fallback_reply}
 ```
 
-**Defense**: `AgentFender.preflight()` checks cumulative token usage against a configurable limit. The agent stops before the bill does.
-
-> **Status**: Token budget control is defined in the spec but not yet implemented. v0.2.
+**Defense**: `AgentFender.preflight()` checks cumulative token usage against a configurable limit. The agent stops before the bill does. The default `count_tokens()` uses `len(text)//4` approximation; pass a custom `token_counter` (e.g., tiktoken) via `FenderConfig` for precise counting.
 
 ---
 

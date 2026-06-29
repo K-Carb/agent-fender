@@ -61,3 +61,23 @@ class TestFenderConfigValidation:
     def test_zero_retry_delay_raises(self):
         with pytest.raises(ValueError, match="retry_base_delay_s"):
             FenderConfig(retry_base_delay_s=0.0)
+
+    def test_token_budget_defaults_to_zero(self):
+        config = FenderConfig()
+        assert config.token_budget == 0
+
+    def test_token_budget_negative_raises(self):
+        with pytest.raises(ValueError, match="token_budget"):
+            FenderConfig(token_budget=-1)
+
+    def test_token_budget_zero_allowed(self):
+        config = FenderConfig(token_budget=0)
+        assert config.token_budget == 0
+
+    def test_token_counter_default_is_none(self):
+        config = FenderConfig()
+        assert config.token_counter is None
+
+    def test_token_counter_custom_callable(self):
+        config = FenderConfig(token_counter=len)
+        assert config.token_counter is len

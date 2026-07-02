@@ -1,12 +1,6 @@
 ---
 name: agent-fender
-description: |
-  This skill should be used when writing, reviewing, or debugging AI agent code.
-  Covers runtime safety guardrails: LLM timeout, loop limit, tool timeout,
-  dangerous-tool gating, injection detection, audit trail, and token budget control.
-  Activate when user mentions agent, LLM, tool calling, LangGraph, CrewAI, AutoGen,
-  OpenAI tools, or asks to "audit my agent", "check my agent for safety",
-  "add guardrails", or "why is my agent failing".
+description: This skill should be used when writing, reviewing, or debugging AI agent code. Covers runtime safety guardrails including LLM timeout, loop limit, tool timeout, dangerous-tool gating, injection detection, audit trail, and token budget control. Activate when user mentions agent, LLM, tool calling, LangGraph, CrewAI, AutoGen, OpenAI tools, or asks to audit my agent, check my agent for safety, add guardrails, or why is my agent failing.
 license: MIT
 metadata:
   author: Carb

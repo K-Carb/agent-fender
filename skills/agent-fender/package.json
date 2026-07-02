@@ -4,7 +4,10 @@
   "description": "Claude Code skill that audits AI agent code for 7 critical safety gaps (timeout, loop limit, dangerous tools, injection, audit trail, token budget)",
   "license": "MIT",
   "author": "Carb <2034249770@qq.com>",
-  "repository": "github:K-Carb/agent-fender",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/K-Carb/agent-fender.git"
+  },
   "homepage": "https://github.com/K-Carb/agent-fender#readme",
   "keywords": [
     "claude-code",

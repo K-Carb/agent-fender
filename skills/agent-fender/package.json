@@ -1,0 +1,33 @@
+{
+  "name": "agent-fender-skill",
+  "version": "1.0.0",
+  "description": "Claude Code skill that audits AI agent code for 7 critical safety gaps (timeout, loop limit, dangerous tools, injection, audit trail, token budget)",
+  "license": "MIT",
+  "author": "Carb <2034249770@qq.com>",
+  "repository": "github:K-Carb/agent-fender",
+  "homepage": "https://github.com/K-Carb/agent-fender#readme",
+  "keywords": [
+    "claude-code",
+    "skill",
+    "agent-skills",
+    "agent-safety",
+    "ai-agent",
+    "guardrails",
+    "audit",
+    "security"
+  ],
+  "bin": {
+    "agent-fender-skill": "install.js"
+  },
+  "scripts": {
+    "postinstall": "node install.js"
+  },
+  "files": [
+    "SKILL.md",
+    "references/",
+    "install.js"
+  ],
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

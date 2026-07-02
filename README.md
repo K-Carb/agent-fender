@@ -10,15 +10,18 @@
 
 ## Quick Start (Skill — Recommended)
 
-1. Install via skills CLI:
-   ```bash
-   npx skills add K-Carb/agent-fender
-   ```
+Choose one:
 
-2. Open Claude Code in your agent project. Say:
+```bash
+npx skills add K-Carb/agent-fender      # skills.sh registry
+npx agent-fender-skill                   # npm (auto-installs to ~/.claude/skills/)
+npm install -g agent-fender-skill        # npm global install
+```
+
+1. Open Claude Code in your agent project. Say:
    > "audit my agent code for safety gaps"
 
-3. You'll get a report card like:
+2. You'll get a report card like:
    ```
    ## Agent Safety Audit
    | # | Guard          | Status | Detail                              |
@@ -34,9 +37,9 @@
    Coverage: 1/7 — 6 guards missing.
    ```
 
-4. Fix them by choosing:
+3. Fix them by choosing:
    - **Option A**: `pip install git+https://github.com/K-Carb/agent-fender.git` — production-ready, zero deps (see below)
-   - **Option B**: Copy inline guard patterns — no dependency (see [references/inline-patterns.md](references/inline-patterns.md))
+   - **Option B**: Copy inline guard patterns — no dependency (see [skills/agent-fender/references/inline-patterns.md](skills/agent-fender/references/inline-patterns.md))
 
 ---
 
@@ -173,9 +176,9 @@ See [`examples/`](examples/) for framework integration patterns with LangGraph, 
 |----------|-------------|
 | [AGENT_SAFETY_SPEC.md](AGENT_SAFETY_SPEC.md) | Authoritative definition of the 7 agent safety guards |
 | [docs/failure-modes.md](docs/failure-modes.md) | 8 real-world agent failure scenarios and how agent-fender prevents each |
-| [references/library-integration.md](references/library-integration.md) | Full 4-step integration guide for the Python library |
-| [references/inline-patterns.md](references/inline-patterns.md) | Minimal inline guard implementations (no dependency) |
-| [references/audit-examples.md](references/audit-examples.md) | Annotated audit results for 3 common agent patterns |
+| [skills/agent-fender/references/library-integration.md](skills/agent-fender/references/library-integration.md) | Full 4-step integration guide for the Python library |
+| [skills/agent-fender/references/inline-patterns.md](skills/agent-fender/references/inline-patterns.md) | Minimal inline guard implementations (no dependency) |
+| [skills/agent-fender/references/audit-examples.md](skills/agent-fender/references/audit-examples.md) | Annotated audit results for 3 common agent patterns |
 | [examples/minimal_agent.py](examples/minimal_agent.py) | Working end-to-end example |
 | [examples/](examples/) | Framework integration examples: LangGraph, CrewAI, AutoGen |
 

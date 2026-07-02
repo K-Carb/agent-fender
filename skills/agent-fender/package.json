@@ -1,6 +1,6 @@
 {
   "name": "agent-fender-skill",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Claude Code skill that audits AI agent code for 7 critical safety gaps (timeout, loop limit, dangerous tools, injection, audit trail, token budget)",
   "license": "MIT",
   "author": "Carb <2034249770@qq.com>",
